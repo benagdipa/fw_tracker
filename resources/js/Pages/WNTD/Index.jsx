@@ -1186,16 +1186,41 @@ const Index = ({
   };
 
   const refreshPage = () => {
-    window.location.reload();
+    // Use router.visit instead of window.location.reload to prevent unexpected refreshes
+    router.visit(route('wntd.field.name.index'), {
+      preserveState: false,
+      preserveScroll: false,
+      only: ['sites', 'get_data', 'statistics']
+    });
   };
 
-  const fetchData = async () => {
+  // Silently refresh CSRF token without any notifications
+  const refreshCsrfToken = async () => {
+    try {
+      const response = await axios.get('/refresh-csrf');
+      if (response.data && response.data.token) {
+        // Update the meta tag with the new token
+        const metaTag = document.querySelector('meta[name="csrf-token"]');
+        if (metaTag) {
+          metaTag.setAttribute('content', response.data.token);
+        }
+        return true;
+      }
+    } catch (error) {
+      console.error('Failed to refresh CSRF token:', error);
+      return false;
+    }
+    return false;
+  };
+
+  const fetchData = async (retryCount = 0) => {
     try {
       setLoading(true);
       const response = await axios.get(route('wntd.field.name.index'), {
         headers: {
           'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
         },
         params: {
           search: searchText,
@@ -1209,8 +1234,7 @@ const Index = ({
 
       // Check if response is HTML (indicating session expired or auth issue)
       if (typeof response.data === 'string' && response.data.includes('<!DOCTYPE html>')) {
-        // Instead of refreshing immediately, show an error message
-        toast.error('Session expired. Please refresh the page to continue.');
+        // Silently proceed without showing any notification
         setData([]);
         return;
       }
@@ -1253,25 +1277,16 @@ const Index = ({
     } catch (error) {
       console.error('Error fetching data:', error);
       if (error.response?.status === 401 || error.response?.status === 419) {
-        // Instead of auto-refreshing, show an error message with a manual refresh button
-        toast.error(
-          (t) => (
-            <div className="flex flex-col gap-2">
-              <span>Session expired. Please refresh the page.</span>
-              <Button
-                size="sm"
-                color="blue"
-                onClick={() => {
-                  toast.dismiss(t.id);
-                  window.location.reload();
-                }}
-              >
-                Refresh Page
-              </Button>
-            </div>
-          ),
-          { duration: 5000 }
-        );
+        // For CSRF token mismatch (419), try to refresh token and retry once
+        if (error.response?.status === 419 && retryCount === 0) {
+          const tokenRefreshed = await refreshCsrfToken();
+          if (tokenRefreshed) {
+            // Retry the fetch with the new token
+            return fetchData(retryCount + 1);
+          }
+        }
+        
+        // Silently handle session expiration without notification
         setData([]);
       } else {
         toast.error('Error loading data: ' + (error.response?.data?.message || error.message));
@@ -1302,10 +1317,15 @@ const Index = ({
 
   // Update the useEffect that calls fetchData to include dependencies
   useEffect(() => {
-    // Only fetch if we have valid pageSize
-    if (pageSize > 0) {
-      fetchData();
-    }
+    // Fetch data directly without forcing token refresh
+    const initializePage = async () => {
+      // Only fetch if we have valid pageSize
+      if (pageSize > 0) {
+        fetchData();
+      }
+    };
+    
+    initializePage();
   }, [pageSize, searchText, statusFilter, dateFilter.startDate, dateFilter.endDate]);
 
   return (

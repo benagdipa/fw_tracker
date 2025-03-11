@@ -53,10 +53,10 @@ const materialTailwindTheme = {
         }
     },
     fontFamily: {
-        sans: ["Inter", "sans-serif"],
-        serif: ["Roboto Slab", "serif"],
-        body: ["Inter", "sans-serif"],
-        mono: ["Roboto Mono", "monospace"],
+        sans: ["-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "sans-serif"],
+        serif: ["Georgia", "Cambria", "Times New Roman", "Times", "serif"],
+        body: ["-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "sans-serif"],
+        mono: ["SFMono-Regular", "Menlo", "Monaco", "Consolas", "Liberation Mono", "Courier New", "monospace"],
     },
     fontSize: {
         xs: '0.75rem',
@@ -67,23 +67,6 @@ const materialTailwindTheme = {
         '2xl': '1.5rem',
         '3xl': '1.875rem',
     },
-    borderRadius: {
-        DEFAULT: '0.375rem',
-        none: '0px',
-        sm: '0.125rem',
-        md: '0.375rem',
-        lg: '0.5rem',
-        xl: '0.75rem',
-        '2xl': '1rem',
-        full: '9999px',
-    },
-    boxShadow: {
-        DEFAULT: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
-        sm: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
-        md: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
-        lg: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
-        xl: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)',
-    },
     shape: {
         borderRadius: {
             xs: '0.125rem',
@@ -92,6 +75,13 @@ const materialTailwindTheme = {
             lg: '0.5rem',
             xl: '0.75rem',
         }
+    },
+    shadows: {
+        sm: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+        DEFAULT: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+        md: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+        lg: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+        xl: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
     },
     components: {
         button: {
@@ -189,7 +179,7 @@ const materialTailwindTheme = {
                 },
             },
         }
-    },
+    }
 };
 
 // Initialize global error handlers

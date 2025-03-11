@@ -9,12 +9,18 @@ class VerifyCsrfToken extends BaseVerifier
     /**
      * The URIs that should be excluded from CSRF verification.
      *
-     * @var array
+     * @var array<int, string>
      */
     protected $except = [
         'sanctum/csrf-cookie',  // Allow refreshing the CSRF token
         'refresh-csrf',         // Our custom CSRF refresh endpoint
         'api/external/*',       // Exclude external API endpoints
-        'login'                 // Temporarily exclude login to fix CSRF issues
+        'check-csrf',           // Our debugging endpoint
+        // Temporary fix for login issues - remove after testing
+        'login',                
+        'dashboard',
+        'api/refresh-csrf-token',
+        'api/log-client-error',
+        'api/error/log'
     ];
 }

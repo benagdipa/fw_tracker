@@ -20,6 +20,16 @@ const defaultTheme = {
     // Add other theme properties as needed
 };
 
+// Use the global refreshCsrfToken function from bootstrap.js
+const refreshTokenAfterThemeChange = () => {
+    if (window.refreshCsrfToken && typeof window.refreshCsrfToken === 'function') {
+        setTimeout(() => {
+            window.refreshCsrfToken();
+            console.log('CSRF token refreshed after theme change');
+        }, 50); // Small delay to ensure token is refreshed after theme change is complete
+    }
+};
+
 export function ThemeProvider({ children }) {
     // State to track if we're still loading dark mode preference
     const [isLoading, setIsLoading] = useState(true);
@@ -86,7 +96,14 @@ export function ThemeProvider({ children }) {
             }
             
             // Save the preference
-            StorageManager.setItem('darkMode', darkMode);
+            StorageManager.setItem('darkMode', darkMode)
+                .then(() => {
+                    // Refresh CSRF token after theme change to ensure it's synchronized
+                    refreshTokenAfterThemeChange();
+                })
+                .catch(error => {
+                    console.error('Error saving dark mode preference:', error);
+                });
         } catch (error) {
             console.error('Error updating dark mode:', error);
         }

@@ -318,33 +318,76 @@ const DataGridComponent = ({
   // Safe data preparation - filter out invalid rows and sanitize data
   const safeRows = useMemo(() => {
     try {
-      if (!rows || !Array.isArray(rows)) return [];
+      if (!rows || !Array.isArray(rows)) {
+        console.warn("DataGrid received invalid rows data:", rows);
+        return [];
+      }
       
-      return rows.filter(row => {
-        // Ensure row exists and has a valid ID
-        if (!row || typeof getRowId(row) === 'undefined') return false;
+      const validRows = [];
+      
+      // Process each row
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
         
-        // Clone the row to avoid mutating the original
-        const safeRow = { ...row };
+        // Skip null or undefined rows
+        if (row === null || row === undefined) {
+          console.warn("DataGrid received null/undefined row at index", i);
+          continue;
+        }
         
-        // Sanitize all cell values
-        columns.forEach(col => {
-          if (!col.field) return;
-          
-          // If value is null/undefined, set to a safe default based on column type
-          if (safeRow[col.field] === null || safeRow[col.field] === undefined) {
-            if (col.type === 'number') {
-              safeRow[col.field] = 0;
-            } else if (col.type === 'date') {
-              safeRow[col.field] = null; // Date components handle null safely
-            } else {
-              safeRow[col.field] = '';
-            }
+        try {
+          // Ensure row has a valid ID
+          let rowId;
+          try {
+            rowId = getRowId(row);
+          } catch (idErr) {
+            console.warn("Error getting row ID:", idErr);
+            // Fallback to index-based ID if getRowId fails
+            rowId = `row-${i}`;
           }
-        });
-        
-        return true;
-      });
+          
+          if (rowId === undefined || rowId === null) {
+            // Assign a fallback ID
+            rowId = `row-${i}`;
+          }
+          
+          // Clone the row to avoid mutating the original
+          const safeRow = { ...row };
+          
+          // Ensure the ID is set on the row object
+          if (typeof getRowId === 'function' && getRowId.toString().includes('row.id')) {
+            safeRow.id = rowId;
+          }
+          
+          // Sanitize all cell values
+          if (columns && Array.isArray(columns)) {
+            columns.forEach(col => {
+              if (!col || !col.field) return;
+              
+              // Handle null/undefined values based on column type
+              if (safeRow[col.field] === null || safeRow[col.field] === undefined) {
+                if (col.type === 'number') {
+                  safeRow[col.field] = 0;
+                } else if (col.type === 'date') {
+                  safeRow[col.field] = null; // Date components handle null safely
+                } else if (col.type === 'boolean') {
+                  safeRow[col.field] = false;
+                } else {
+                  safeRow[col.field] = '';
+                }
+              }
+            });
+          }
+          
+          // Add the sanitized row to our result array
+          validRows.push(safeRow);
+        } catch (err) {
+          console.error("Error processing row:", err, row);
+          // Continue with next row instead of skipping this one entirely
+        }
+      }
+      
+      return validRows;
     } catch (err) {
       console.error("Error preparing DataGrid rows:", err);
       setHasError(true);

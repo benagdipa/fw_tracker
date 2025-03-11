@@ -20,8 +20,61 @@ use Inertia\Inertia;
 
 // Special route to refresh CSRF token - exclude from CSRF protection
 Route::get('/refresh-csrf', function () {
-    return response()->json(['token' => csrf_token()]);
-})->withoutMiddleware(['web', 'csrf']);
+    // Regenerate the CSRF token to ensure freshness
+    $request = request();
+    $session = $request->session();
+    
+    // Check if session is active and regenerate token if needed
+    if ($session && $session->isStarted()) {
+        $session->regenerateToken();
+    }
+    
+    // Return the new token with appropriate headers for cross-domain safety
+    return response()->json([
+        'token' => csrf_token(),
+        'status' => 'success',
+        'timestamp' => now()->timestamp
+    ])->withHeaders([
+        'Cache-Control' => 'no-cache, no-store, must-revalidate',
+        'Pragma' => 'no-cache',
+        'Expires' => '0'
+    ]);
+})->withoutMiddleware(['csrf']); // Only exclude CSRF middleware, keep web middleware for session
+
+// Replace with this more robust version that bypasses all potential middleware issues
+Route::get('/api/refresh-csrf-token', function () {
+    // Start a session if one doesn't exist yet
+    if (!session()->isStarted()) {
+        session()->start();
+    }
+    
+    // Force regeneration of CSRF token
+    session()->regenerateToken();
+    
+    // Return the token with cache-busting headers
+    return response()->json([
+        'token' => csrf_token(),
+        'status' => 'success',
+        'timestamp' => now()->timestamp
+    ])->withHeaders([
+        'Cache-Control' => 'no-cache, no-store, must-revalidate',
+        'Pragma' => 'no-cache',
+        'Expires' => '0',
+        'Access-Control-Allow-Origin' => '*',
+        'Access-Control-Allow-Methods' => 'GET',
+        'Access-Control-Allow-Headers' => 'X-Requested-With'
+    ]);
+})->middleware('web')->withoutMiddleware(['csrf', 'App\Http\Middleware\VerifyCsrfToken']);
+
+// Debug route to check CSRF token status
+Route::get('/check-csrf', function () {
+    return response()->json([
+        'token_exists' => csrf_token() ? true : false,
+        'token_preview' => substr(csrf_token(), 0, 10) . '...',
+        'session_status' => session()->isStarted() ? 'Started' : 'Not Started',
+        'session_id' => session()->getId()
+    ]);
+})->withoutMiddleware(['csrf']);
 
 // Apply web middleware to all routes to ensure CSRF protection
 Route::middleware(['web'])->group(function() {

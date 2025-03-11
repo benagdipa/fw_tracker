@@ -36,6 +36,7 @@ const LinkSql = (params) => {
 const SaveDeleteComponent = (params) => {
   const { processing, delete: destroy } = useForm();
   const { databaseChanged } = useSelector(state => state.table);
+  const [saving, setSaving] = useState(false);
 
   const onDeleteBtnHandler = () => {
     destroy(route('import.db.delete', params.row.id), {
@@ -44,25 +45,59 @@ const SaveDeleteComponent = (params) => {
   }
 
   const onEditBtnHandler = async () => {
-    if (databaseChanged.length > 0) {
-      let toSaveitems = databaseChanged.filter(item => item.id === params.row.id)[0]
+    if (!databaseChanged || databaseChanged.length === 0) {
+      toast.info("No changes to save");
+      return;
+    }
 
-      if (toSaveitems) {
-        const res = await axios.post(route('import.db.store'), {
-          id: toSaveitems?.items?.id,
-          dbtype: toSaveitems?.items?.dbtype,
-          host: toSaveitems?.items?.host,
-          port: toSaveitems?.items?.port,
-          database: toSaveitems?.items?.database,
-          username: toSaveitems?.items?.username,
-          password: toSaveitems?.items?.password,
-          catalog: toSaveitems?.items?.catalog,
-        })
-
-        if (res?.data?.success) {
-          toast.success(res?.data?.success?.message)
-        }
+    try {
+      setSaving(true);
+      
+      // Find the changes for this specific row
+      const toSaveItems = databaseChanged.find(item => item.id === params.row.id);
+      
+      if (!toSaveItems || !toSaveItems.items) {
+        toast.warning("No valid changes found for this connection");
+        return;
       }
+      
+      // Extract the data to save
+      const data = toSaveItems.items;
+      
+      // Validate required fields before sending
+      if (!data.host || !data.port || !data.database || !data.username) {
+        toast.error("Missing required fields: host, port, database, and username are required");
+        return;
+      }
+      
+      // Make the API request
+      const res = await axios.post(route('import.db.store'), {
+        id: data.id,
+        dbtype: data.dbtype || 'mysql', // Default to mysql if not specified
+        host: data.host,
+        port: data.port,
+        database: data.database,
+        username: data.username,
+        password: data.password,
+        catalog: data.catalog,
+        sslrequired: data.sslrequired || false,
+      });
+      
+      // Handle the response
+      if (res?.data?.success) {
+        toast.success(res.data.success.message || "Connection saved successfully");
+      } else {
+        toast.error(res.data.error?.message || "Failed to save connection");
+      }
+    } catch (error) {
+      console.error("Error saving database connection:", error);
+      toast.error(
+        error.response?.data?.error?.message || 
+        error.message || 
+        "Failed to save connection"
+      );
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -77,10 +112,11 @@ const SaveDeleteComponent = (params) => {
       <Button
         size="sm"
         className="capitalize py-1 px-2 rounded font-semibold"
-        onClick={() => { onEditBtnHandler() }}
+        onClick={onEditBtnHandler}
         color="blue"
+        disabled={saving}
       >
-        Edit
+        {saving ? "Saving..." : "Save"}
       </Button>
       <Button
         variant="gradient"
@@ -88,6 +124,7 @@ const SaveDeleteComponent = (params) => {
         size="sm"
         className="capitalize py-1 px-2 rounded"
         onClick={onDeleteBtnHandler}
+        disabled={saving}
       >
         <Trash2Icon size={14} />
       </Button>

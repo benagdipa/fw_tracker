@@ -9,5 +9,5 @@ class ImportDB extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['sslrequired,','catalog','dbtype','host', "port", "database", 'username', 'password'];
+    protected $fillable = ['sslrequired', 'catalog', 'dbtype', 'host', 'port', 'database', 'username', 'password'];
 }

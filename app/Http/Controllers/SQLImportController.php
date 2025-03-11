@@ -441,40 +441,128 @@ public function import_starburst($id)
 
     public function store(Request $request)
     {
-        if (is_array($request->data)) {
-            $data = $request->data;
-            foreach ($data as $item) {
-                $existingWntd = DB::table('wntd')->where('loc_id', $item['loc_id']?$item['loc_id']:$item['LOCID'])->first();
-                if (!$existingWntd) {
-                    DB::table('wntd')->insert([
-                        'loc_id' =>  $item['loc_id']?$item['loc_id']:$item['LOCID'],
-                        'wntd' => $item['wntd']?$item['wntd']:$item['WNTD'],
-                        'imsi' => $item['imsi']?$item['imsi']:$item['IMSI'],
-                        'version' => $item['version']?$item['version']:$item['VERSION'],
-                        'avc' => $item['avc']?$item['avc']:$item['AVC'],
-                        'bw_profile' => $item['bw_profile']?$item['bw_profile']:$item['BW_PROFILE'],
-                        'lon' => $item['lon']?$item['lon']:$item['LON'],
-                        'lat' => $item['lat']?$item['lat']:$item['LAT'],
-                        'site_name' => $item['site_name']?$item['site_name']:$item['SITE_NAME'],
-                        'home_cell' =>$item['home_cell']?$item['home_cell']:$item['HOME_CELL'],
-                        'home_pci' => $item['home_pci']?$item['home_pci']:$item['HOME_PCI'],
-                        'traffic_profile' => $item['traffic_profile']?$item['traffic_profile']:$item['TRAFFIC_PROFILE'],
-                    ]);
-                } else {
-                    $locId=$item['loc_id']?$item['loc_id']:$item['LOCID'];
-                    return response()->json([
-                        'error' => array(
-                            'message' => 'Site with LOCID ' .  $locId . ' already exists',
-                        )
-                    ], 500);
+        if (!isset($request->data) || !is_array($request->data)) {
+            return response()->json([
+                'error' => ['message' => 'No data provided or invalid data format']
+            ], 400);
+        }
+
+        $data = $request->data;
+        $successCount = 0;
+        $errorCount = 0;
+        $errors = [];
+
+        DB::beginTransaction();
+        try {
+            foreach ($data as $index => $item) {
+                // Verify item is an array/object
+                if (!is_array($item) && !is_object($item)) {
+                    $errors[] = "Row $index: Invalid data format";
+                    $errorCount++;
+                    continue;
+                }
+
+                // Convert object to array if needed
+                $item = (array)$item;
+
+                // Get loc_id with proper fallback
+                $locId = $this->getFieldValueWithFallback($item, 'loc_id', 'LOCID');
+                if (empty($locId)) {
+                    $errors[] = "Row $index: Missing location ID";
+                    $errorCount++;
+                    continue;
+                }
+
+                // Check if record already exists
+                $existingWntd = DB::table('wntd')->where('loc_id', $locId)->first();
+                if ($existingWntd) {
+                    $errors[] = "Row $index: Site with LOCID $locId already exists";
+                    $errorCount++;
+                    continue;
+                }
+
+                // Prepare data for insertion with safer field retrieval
+                $insertData = [
+                    'loc_id' => $locId,
+                    'wntd' => $this->getFieldValueWithFallback($item, 'wntd', 'WNTD'),
+                    'imsi' => $this->getFieldValueWithFallback($item, 'imsi', 'IMSI'),
+                    'version' => $this->getFieldValueWithFallback($item, 'version', 'VERSION'),
+                    'avc' => $this->getFieldValueWithFallback($item, 'avc', 'AVC'),
+                    'bw_profile' => $this->getFieldValueWithFallback($item, 'bw_profile', 'BW_PROFILE'),
+                    'lon' => $this->getFieldValueWithFallback($item, 'lon', 'LON'),
+                    'lat' => $this->getFieldValueWithFallback($item, 'lat', 'LAT'),
+                    'site_name' => $this->getFieldValueWithFallback($item, 'site_name', 'SITE_NAME'),
+                    'home_cell' => $this->getFieldValueWithFallback($item, 'home_cell', 'HOME_CELL'),
+                    'home_pci' => $this->getFieldValueWithFallback($item, 'home_pci', 'HOME_PCI'),
+                    'traffic_profile' => $this->getFieldValueWithFallback($item, 'traffic_profile', 'TRAFFIC_PROFILE'),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+
+                // Insert the record
+                try {
+                    DB::table('wntd')->insert($insertData);
+                    $successCount++;
+                } catch (\Exception $e) {
+                    Log::error("SQL Import error: " . $e->getMessage(), ['data' => $insertData]);
+                    $errors[] = "Row $index: Database error - " . $e->getMessage();
+                    $errorCount++;
                 }
             }
+
+            // Commit transaction if there were any successful insertions
+            if ($successCount > 0) {
+                DB::commit();
+                return response()->json([
+                    'success' => [
+                        'message' => "$successCount records imported successfully" . 
+                                    ($errorCount > 0 ? " with $errorCount errors" : "")
+                    ],
+                    'errors' => $errors
+                ], 200);
+            } else {
+                // Rollback if no successful insertions
+                DB::rollback();
+                return response()->json([
+                    'error' => [
+                        'message' => "Import failed: $errorCount errors",
+                        'details' => $errors
+                    ]
+                ], 400);
+            }
+        } catch (\Exception $e) {
+            DB::rollback();
+            Log::error("SQL Import exception: " . $e->getMessage());
             return response()->json([
-                'success' => array(
-                    'message' => 'Data imported successfully.',
-                )
-            ], 200);
+                'error' => [
+                    'message' => 'Import failed: ' . $e->getMessage()
+                ]
+            ], 500);
         }
+    }
+
+    /**
+     * Helper method to safely get a field value with fallback to uppercase name
+     *
+     * @param array $item The data array
+     * @param string $field The lowercase field name
+     * @param string $uppercaseField The uppercase field name alternative
+     * @return mixed The field value or null if not found
+     */
+    private function getFieldValueWithFallback($item, $field, $uppercaseField) 
+    {
+        // First try lowercase field name
+        if (isset($item[$field]) && $item[$field] !== null && $item[$field] !== '') {
+            return $item[$field];
+        }
+        
+        // Then try uppercase field name
+        if (isset($item[$uppercaseField]) && $item[$uppercaseField] !== null && $item[$uppercaseField] !== '') {
+            return $item[$uppercaseField];
+        }
+        
+        // If neither exists or both are empty, return null
+        return null;
     }
 
     function get_db_data($command, $password) {

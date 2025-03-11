@@ -24,6 +24,16 @@ const isServiceWorkerAvailable = async () => {
   }
 };
 
+// Helper to refresh CSRF token after storage operations
+const refreshCsrfTokenAfterStorage = () => {
+  // Use the global function if available from bootstrap.js
+  if (window.refreshCsrfToken && typeof window.refreshCsrfToken === 'function') {
+    setTimeout(() => {
+      window.refreshCsrfToken();
+    }, 50); // Small delay to ensure token refresh happens after storage completes
+  }
+};
+
 // Send message to service worker and get response
 const sendMessageToServiceWorker = (data) => {
   return new Promise(async (resolve, reject) => {
@@ -129,6 +139,8 @@ export const getItem = async (key) => {
  */
 export const setItem = async (key, value) => {
   try {
+    let success = false;
+    
     // Try service worker first
     try {
       if (await isServiceWorkerAvailable()) {
@@ -137,27 +149,32 @@ export const setItem = async (key, value) => {
           key: key,
           value: value
         });
-        return response.success;
+        success = response.success;
       }
     } catch (swError) {
       console.warn(`Service worker storage failed for setting ${key}, falling back to alternatives:`, swError);
       // Continue to localStorage fallback
     }
     
-    // Fallback to localStorage
-    if (isLocalStorageAvailable()) {
+    // Fallback to localStorage if service worker failed
+    if (!success && isLocalStorageAvailable()) {
       const stringValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
       localStorage.setItem(key, stringValue);
-      return true;
+      success = true;
     }
     
-    // Final fallback to memory storage
-    if (isMemoryStorageAvailable()) {
+    // Final fallback to memory storage if both failed
+    if (!success && isMemoryStorageAvailable()) {
       window.fallbackStorage.set(key, value);
-      return true;
+      success = true;
     }
     
-    return false;
+    // Refresh CSRF token after storage changes to ensure it's synchronized
+    if (success) {
+      refreshCsrfTokenAfterStorage();
+    }
+    
+    return success;
   } catch (error) {
     console.error(`Error setting item ${key}:`, error);
     return false;
@@ -171,6 +188,8 @@ export const setItem = async (key, value) => {
  */
 export const removeItem = async (key) => {
   try {
+    let success = false;
+    
     // Try service worker first
     try {
       if (await isServiceWorkerAvailable()) {
@@ -178,26 +197,31 @@ export const removeItem = async (key) => {
           type: 'DELETE_DATA',
           key: key
         });
-        return response.success;
+        success = response.success;
       }
     } catch (swError) {
       console.warn(`Service worker storage failed for removing ${key}, falling back to alternatives:`, swError);
       // Continue to localStorage fallback
     }
     
-    // Fallback to localStorage
-    if (isLocalStorageAvailable()) {
+    // Fallback to localStorage if service worker failed
+    if (!success && isLocalStorageAvailable()) {
       localStorage.removeItem(key);
-      return true;
+      success = true;
     }
     
-    // Final fallback to memory storage
-    if (isMemoryStorageAvailable()) {
+    // Final fallback to memory storage if both failed
+    if (!success && isMemoryStorageAvailable()) {
       window.fallbackStorage.delete(key);
-      return true;
+      success = true;
     }
     
-    return false;
+    // Refresh CSRF token after storage changes to ensure it's synchronized
+    if (success) {
+      refreshCsrfTokenAfterStorage();
+    }
+    
+    return success;
   } catch (error) {
     console.error(`Error removing item ${key}:`, error);
     return false;

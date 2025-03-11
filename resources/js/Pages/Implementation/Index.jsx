@@ -716,13 +716,37 @@ export default function Index({
     }
   };
 
+  // Add silent CSRF token refresh function
+  const refreshCsrfToken = async () => {
+    try {
+      const response = await axios.get('/refresh-csrf');
+      if (response.data && response.data.token) {
+        // Update the meta tag with the new token
+        const metaTag = document.querySelector('meta[name="csrf-token"]');
+        if (metaTag) {
+          metaTag.setAttribute('content', response.data.token);
+        }
+        return true;
+      }
+    } catch (error) {
+      console.error('Failed to refresh CSRF token:', error);
+      return false;
+    }
+    return false;
+  };
+
   // Update refreshPage function to use Inertia router
   const refreshPage = () => {
-    router.reload();
+    // Use router.visit instead of router.reload to prevent unexpected refreshes
+    router.visit(route('implementation.field.name.index'), {
+      preserveState: false,
+      preserveScroll: false,
+      only: ['items', 'get_data', 'statistics']
+    });
   };
 
   // Update the fetchData function
-  const fetchData = async () => {
+  const fetchData = async (retryCount = 0) => {
     try {
       setLoading(true);
       const response = await axios.get(route('implementation.field.name.index'), {
@@ -743,24 +767,7 @@ export default function Index({
 
       // Handle session expiration without auto-refresh
       if (typeof response.data === 'string' && response.data.includes('<!DOCTYPE html>')) {
-        toast.error(
-          (t) => (
-            <div className="flex flex-col gap-2">
-              <span>Session expired. Please refresh the page.</span>
-              <Button
-                size="sm"
-                color="blue"
-                onClick={() => {
-                  toast.dismiss(t.id);
-                  window.location.reload();
-                }}
-              >
-                Refresh Page
-              </Button>
-            </div>
-          ),
-          { duration: 0 } // Don't auto-dismiss
-        );
+        // Silently proceed without showing notification
         setRows([]);
         return;
       }
@@ -794,24 +801,17 @@ export default function Index({
     } catch (error) {
       console.error('Error fetching data:', error);
       if (error.response?.status === 401 || error.response?.status === 419) {
-        toast.error(
-          (t) => (
-            <div className="flex flex-col gap-2">
-              <span>Session expired. Please refresh the page.</span>
-              <Button
-                size="sm"
-                color="blue"
-                onClick={() => {
-                  toast.dismiss(t.id);
-                  window.location.reload();
-                }}
-              >
-                Refresh Page
-              </Button>
-            </div>
-          ),
-          { duration: 0 } // Don't auto-dismiss
-        );
+        // For CSRF token mismatch (419), try to refresh token and retry once
+        if (error.response?.status === 419 && retryCount === 0) {
+          const tokenRefreshed = await refreshCsrfToken();
+          if (tokenRefreshed) {
+            // Retry the fetch with the new token
+            return fetchData(retryCount + 1);
+          }
+        }
+        
+        // Silently handle session expiration without notification
+        setRows([]);
       } else {
         toast.error('Error loading data: ' + (error.response?.data?.message || error.message));
       }
