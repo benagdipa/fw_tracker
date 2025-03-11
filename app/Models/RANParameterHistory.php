@@ -24,7 +24,11 @@ class RANParameterHistory extends Model
      */
     protected $fillable = [
         'parameter_id',
+        'field_name',
+        'old_value',
+        'new_value',
         'user_id',
+        'change_type',
         'changes',
         'action'
     ];
@@ -40,6 +44,16 @@ class RANParameterHistory extends Model
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime'
     ];
+    
+    /**
+     * The attributes that should have default values.
+     *
+     * @var array
+     */
+    protected $attributes = [
+        'field_name' => 'parameter_value',
+        'change_type' => 'create'
+    ];
 
     protected function asJson($value)
     {
@@ -54,6 +68,28 @@ class RANParameterHistory extends Model
     protected function setOldValueAttribute($value)
     {
         $this->attributes['old_value'] = is_null($value) ? null : (string) $value;
+    }
+
+    /**
+     * Boot the model.
+     *
+     * @return void
+     */
+    protected static function boot()
+    {
+        parent::boot();
+        
+        static::creating(function ($model) {
+            // Set field_name default if it's not already set
+            if (empty($model->field_name)) {
+                $model->field_name = 'parameter_value';
+            }
+            
+            // Set change_type default if it's not already set
+            if (empty($model->change_type)) {
+                $model->change_type = 'create';
+            }
+        });
     }
 
     /**

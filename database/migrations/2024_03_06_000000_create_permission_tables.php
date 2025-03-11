@@ -20,9 +20,6 @@ return new class extends Migration
             return; // Skip if all tables already exist
         }
 
-        $columnNames = config('permission.column_names');
-        $teams = config('permission.teams');
-
         // Check if this migration has already been run
         if (Schema::hasTable($tableNames['permissions']) && 
             Schema::hasTable($tableNames['roles']) && 
@@ -32,7 +29,7 @@ return new class extends Migration
             $this->down();
         }
 
-        Schema::create($tableNames['permissions'], function (Blueprint $table) {
+        Schema::create($tableNames['permissions'], function (Blueprint $table) use ($tableNames) {
             // Check if table already exists - skip if it does
             if (Schema::hasTable($tableNames['permissions'])) {
                 return;
@@ -46,7 +43,7 @@ return new class extends Migration
             $table->unique(['name', 'guard_name']);
         });
 
-        Schema::create($tableNames['roles'], function (Blueprint $table) use ($teams) {
+        Schema::create($tableNames['roles'], function (Blueprint $table) use ($tableNames, $teams, $columnNames) {
             // Check if table already exists - skip if it does
             if (Schema::hasTable($tableNames['roles'])) {
                 return;
