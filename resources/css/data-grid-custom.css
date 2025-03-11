@@ -1,0 +1,697 @@
+/* Custom styles for Material UI DataGrid component */
+
+/* CSS Variables for theming */
+:root {
+  --grid-bg: #ffffff;
+  --grid-header-bg: #f8fafc;
+  --grid-header-color: #475569;
+  --grid-border-color: #e2e8f0;
+  --grid-cell-color: #334155;
+  --grid-hover-bg: rgba(59, 130, 246, 0.08);
+  --grid-selected-bg: rgba(59, 130, 246, 0.12);
+  --grid-toolbar-bg: #f8fafc;
+  --grid-overlay-bg: rgba(255, 255, 255, 0.7);
+  --grid-menu-color: #64748b;
+  --grid-sort-icon-color: #475569;
+  --grid-tooltip-bg: #334155;
+  --grid-tooltip-color: white;
+  /* New variables for search and buttons */
+  --search-bg: #ffffff;
+  --search-border: #e2e8f0;
+  --search-text: #334155;
+  --search-placeholder: #94a3b8;
+  --search-focus-border: #3b82f6;
+  --search-focus-shadow: rgba(59, 130, 246, 0.1);
+  --button-bg: #ffffff;
+  --button-text: #334155;
+  --button-border: #e2e8f0;
+  --button-hover-bg: #f1f5f9;
+  --button-active-bg: #e2e8f0;
+  --button-disabled-bg: #f1f5f9;
+  --button-disabled-text: #94a3b8;
+  --button-primary-bg: #3b82f6;
+  --button-primary-text: #ffffff;
+  --button-primary-hover-bg: #2563eb;
+  --button-primary-active-bg: #1d4ed8;
+}
+
+/* Dark mode variables */
+.dark {
+  --grid-bg: #111827;
+  --grid-header-bg: #1F2937;
+  --grid-header-color: #E5E7EB;
+  --grid-border-color: #374151;
+  --grid-cell-color: #E5E7EB;
+  --grid-hover-bg: rgba(59, 130, 246, 0.15);
+  --grid-selected-bg: rgba(59, 130, 246, 0.2);
+  --grid-toolbar-bg: #1F2937;
+  --grid-overlay-bg: rgba(17, 24, 39, 0.7);
+  --grid-menu-color: #9CA3AF;
+  --grid-sort-icon-color: #D1D5DB;
+  --grid-tooltip-bg: #1F2937;
+  --grid-tooltip-color: #E5E7EB;
+  /* Dark mode variables for search and buttons */
+  --search-bg: #1F2937;
+  --search-border: #374151;
+  --search-text: #E5E7EB;
+  --search-placeholder: #6B7280;
+  --search-focus-border: #3B82F6;
+  --search-focus-shadow: rgba(59, 130, 246, 0.2);
+  --button-bg: #1F2937;
+  --button-text: #E5E7EB;
+  --button-border: #374151;
+  --button-hover-bg: #374151;
+  --button-active-bg: #4B5563;
+  --button-disabled-bg: #1F2937;
+  --button-disabled-text: #6B7280;
+  --button-primary-bg: #3B82F6;
+  --button-primary-text: #ffffff;
+  --button-primary-hover-bg: #2563EB;
+  --button-primary-active-bg: #1D4ED8;
+}
+
+/* Make the grid container fullwidth with proper height handling */
+.MuiDataGrid-root {
+  width: 100%;
+  background-color: var(--grid-bg);
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: visible !important;
+}
+
+/* Fix flex layout issues */
+.MuiDataGrid-main {
+  flex-direction: column;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Header styling */
+.MuiDataGrid-columnHeaders {
+  background-color: var(--grid-header-bg) !important;
+  border-bottom: 1px solid var(--grid-border-color);
+  font-weight: 600;
+}
+
+.MuiDataGrid-columnHeaderTitle {
+  font-weight: 600;
+  color: var(--grid-header-color) !important;
+  white-space: normal;
+  line-height: 1.2;
+  padding: 4px 0;
+}
+
+/* Fix column header height for text wrapping */
+.MuiDataGrid-columnHeader {
+  padding: 0 16px;
+  outline: none !important;
+  background-color: var(--grid-header-bg) !important;
+}
+
+/* Row styling */
+.MuiDataGrid-row {
+  cursor: pointer;
+  transition: all 0.2s ease-in-out !important;
+}
+
+.MuiDataGrid-row:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  z-index: 1;
+  background-color: var(--grid-hover-bg) !important;
+}
+
+/* Cell styling */
+.MuiDataGrid-cell {
+  border-bottom: 1px solid var(--grid-border-color);
+  padding: 10px 16px !important;
+  outline: none !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.875rem !important;
+  line-height: 1.5 !important;
+  color: var(--grid-cell-color) !important;
+}
+
+/* Cell editing */
+.MuiDataGrid-editInputCell {
+  padding: 0 !important;
+  height: 100% !important;
+}
+
+.MuiDataGrid-editInputCell input {
+  height: 100% !important;
+  padding: 0 16px !important;
+  font-size: 0.875rem;
+  color: var(--grid-cell-color) !important;
+  background-color: var(--grid-bg) !important;
+}
+
+/* Pagination controls */
+.MuiTablePagination-root {
+  color: var(--grid-cell-color) !important;
+  margin: 0;
+  overflow: visible;
+  font-size: 0.875rem !important;
+}
+
+.MuiTablePagination-selectLabel, 
+.MuiTablePagination-displayedRows {
+  margin: 0 !important;
+  font-size: 0.875rem !important;
+  color: var(--grid-cell-color) !important;
+}
+
+/* Loading overlay */
+.MuiDataGrid-loadingOverlay {
+  background-color: var(--grid-overlay-bg);
+}
+
+/* Selection styling */
+.MuiDataGrid-row.Mui-selected {
+  background-color: var(--grid-selected-bg) !important;
+}
+
+.MuiDataGrid-row.Mui-selected:hover {
+  background-color: var(--grid-selected-bg) !important;
+}
+
+/* Empty data message */
+.MuiDataGrid-overlay {
+  color: var(--grid-cell-color);
+  z-index: 1;
+  background-color: var(--grid-overlay-bg);
+}
+
+/* Column menu */
+.MuiDataGrid-menuIcon {
+  color: var(--grid-menu-color);
+}
+
+/* Sort icon */
+.MuiDataGrid-sortIcon {
+  color: var(--grid-sort-icon-color);
+  opacity: 0.7;
+}
+
+/* Filter panel */
+.MuiDataGrid-filterForm {
+  padding: 16px !important;
+  background-color: var(--grid-bg);
+  color: var(--grid-cell-color);
+}
+
+/* Toolbar */
+.MuiDataGrid-toolbarContainer {
+  padding: 8px 16px !important;
+  background-color: var(--grid-toolbar-bg);
+  border-bottom: 1px solid var(--grid-border-color);
+  flex-wrap: wrap;
+  gap: 8px !important;
+}
+
+/* Export buttons */
+.MuiButton-root.MuiButton-text {
+  color: var(--grid-cell-color);
+  text-transform: none;
+}
+
+.MuiButton-root.MuiButton-text:hover {
+  background-color: var(--grid-hover-bg);
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .MuiDataGrid-toolbarContainer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .MuiDataGrid-toolbarContainer > div {
+    margin-bottom: 8px;
+    width: 100%;
+  }
+  
+  .MuiTablePagination-root {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}
+
+/* Fix row height calculation issues */
+.MuiDataGrid-windowContainer {
+  width: 100%;
+  overflow: visible !important;
+}
+
+/* Fix content clipping */
+.MuiDataGrid-virtualScroller {
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+}
+
+/* Improve tooltip appearance */
+.MuiTooltip-tooltip {
+  background-color: var(--grid-tooltip-bg) !important;
+  color: var(--grid-tooltip-color) !important;
+  font-size: 0.75rem !important;
+  padding: 0.5rem 0.75rem !important;
+  border-radius: 0.25rem !important;
+}
+
+/* Style toolbar buttons */
+.MuiDataGrid-toolbarContainer button {
+  border-radius: 6px !important;
+  padding: 6px 12px !important;
+  min-width: 0 !important;
+  color: var(--grid-cell-color) !important;
+  font-size: 0.75rem !important;
+  text-transform: none !important;
+  font-weight: 500 !important;
+}
+
+.MuiDataGrid-toolbarContainer button:hover {
+  background-color: var(--grid-hover-bg) !important;
+}
+
+/* Improve action buttons styling */
+.MuiDataGrid-actionsCell {
+  gap: 4px !important;
+}
+
+.MuiDataGrid-actionsCell button {
+  padding: 4px !important;
+  transition: all 0.2s !important;
+  color: var(--grid-cell-color) !important;
+}
+
+.MuiDataGrid-actionsCell button:hover {
+  transform: scale(1.1);
+  background-color: var(--grid-hover-bg) !important;
+}
+
+/* Add subtle animations to various elements */
+.MuiButton-root, 
+.MuiIconButton-root, 
+.MuiTablePagination-actions .MuiIconButton-root {
+  transition: all 0.2s ease !important;
+}
+
+.MuiButton-root:hover:not(:disabled), 
+.MuiIconButton-root:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+/* Disabled button styling */
+.MuiButton-root:disabled,
+.MuiIconButton-root:disabled {
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+}
+
+/* Button with loading indicator */
+.MuiButton-root .animate-spin {
+  transition: none !important;
+}
+
+/* Custom scrollbar styling */
+.MuiDataGrid-virtualScroller::-webkit-scrollbar {
+  width: 8px !important;
+  height: 8px !important;
+  display: block !important;
+}
+
+.MuiDataGrid-virtualScroller::-webkit-scrollbar-track {
+  background: #f5f5f5;
+  border-radius: 6px;
+}
+
+.MuiDataGrid-virtualScroller::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 6px;
+}
+
+.MuiDataGrid-virtualScroller::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
+
+/* Cell animation on edit */
+.MuiDataGrid-cell.Mui-editing {
+  animation: cell-highlight 1.5s ease;
+  z-index: 2;
+}
+
+@keyframes cell-highlight {
+  0% {
+    background-color: rgba(59, 130, 246, 0.1);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+}
+
+/* Filter panel improvements */
+.MuiDataGrid-panel {
+  border-radius: 8px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Focus visible improvements */
+.MuiDataGrid-root .MuiDataGrid-cell:focus-within, 
+.MuiDataGrid-root .MuiDataGrid-columnHeader:focus-within,
+.MuiDataGrid-root .MuiDataGrid-cell:focus, 
+.MuiDataGrid-root .MuiDataGrid-columnHeader:focus {
+  outline: none !important;
+}
+
+.MuiDataGrid-root .MuiDataGrid-columnHeader:focus-within,
+.MuiDataGrid-root .MuiDataGrid-columnHeader:focus {
+  box-shadow: inset 0 -2px 0 #3b82f6;
+}
+
+/* Standardized Data Grid Styling */
+
+/* Base container styling - ensure parent has width */
+.standard-datagrid {
+  @apply rounded-lg overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700;
+  @apply bg-white dark:bg-gray-800;
+  @apply transition-all duration-300;
+  width: 100% !important; /* Force width to ensure grid is displayed properly */
+  min-height: 400px; /* Add minimum height */
+}
+
+/* Parent container fix */
+.standard-datagrid-container {
+  width: 100% !important;
+  min-height: 400px;
+}
+
+/* Additional fixes for grid width issues */
+.standard-datagrid .MuiDataGrid-main,
+.standard-datagrid .MuiDataGrid-root {
+  width: 100% !important;
+}
+
+/* Header styling */
+.standard-datagrid .MuiDataGrid-columnHeaders {
+  @apply bg-gray-50 dark:bg-gray-700;
+  @apply border-b border-gray-200 dark:border-gray-600;
+  @apply text-gray-700 dark:text-gray-200;
+  @apply font-medium;
+}
+
+/* Column header styling */
+.standard-datagrid .MuiDataGrid-columnHeader {
+  @apply outline-none;
+  @apply hover:bg-gray-100 dark:hover:bg-gray-600;
+  @apply transition-colors duration-200;
+}
+
+/* Column header title */
+.standard-datagrid .MuiDataGrid-columnHeaderTitle {
+  @apply font-semibold text-gray-800 dark:text-gray-100;
+  @apply text-sm;
+}
+
+/* Row styling */
+.standard-datagrid .MuiDataGrid-row {
+  @apply border-b border-gray-100 dark:border-gray-700;
+  @apply hover:bg-blue-50 dark:hover:bg-blue-900/20;
+  @apply transition-colors duration-200;
+}
+
+/* Alternating row colors */
+.standard-datagrid .MuiDataGrid-row:nth-of-type(even) {
+  @apply bg-gray-50/50 dark:bg-gray-800/50;
+}
+
+/* Cell styling */
+.standard-datagrid .MuiDataGrid-cell {
+  @apply text-gray-800 dark:text-gray-200;
+  @apply border-r border-gray-100 dark:border-gray-700;
+  @apply px-4;
+  @apply outline-none;
+}
+
+/* Cell editing */
+.standard-datagrid .MuiDataGrid-cell--editing {
+  @apply bg-blue-50 dark:bg-blue-900/30;
+  @apply shadow-inner;
+}
+
+/* Footer styling */
+.standard-datagrid .MuiDataGrid-footerContainer {
+  @apply bg-gray-50 dark:bg-gray-700;
+  @apply border-t border-gray-200 dark:border-gray-600;
+  @apply py-2;
+}
+
+/* Pagination styling */
+.standard-datagrid .MuiTablePagination-root {
+  @apply text-gray-700 dark:text-gray-200;
+}
+
+/* Pagination select */
+.standard-datagrid .MuiTablePagination-select {
+  @apply bg-white dark:bg-gray-800;
+  @apply border border-gray-300 dark:border-gray-600;
+  @apply rounded;
+  @apply text-gray-800 dark:text-gray-200;
+}
+
+/* Action buttons in cells */
+.standard-datagrid .MuiDataGrid-actionsCell {
+  @apply flex gap-1 justify-end;
+}
+
+/* Edit button */
+.standard-datagrid .edit-button {
+  @apply text-blue-600 dark:text-blue-400;
+  @apply hover:text-blue-800 dark:hover:text-blue-300;
+  @apply transition-colors duration-200;
+}
+
+/* Delete button */
+.standard-datagrid .delete-button {
+  @apply text-red-600 dark:text-red-400;
+  @apply hover:text-red-800 dark:hover:text-red-300;
+  @apply transition-colors duration-200;
+}
+
+/* Save button */
+.standard-datagrid .save-button {
+  @apply text-green-600 dark:text-green-400;
+  @apply hover:text-green-800 dark:hover:text-green-300;
+  @apply transition-colors duration-200;
+}
+
+/* No rows overlay */
+.standard-datagrid .MuiDataGrid-overlay {
+  @apply bg-white/90 dark:bg-gray-800/90;
+  @apply text-gray-500 dark:text-gray-400;
+  @apply flex flex-col items-center justify-center;
+  @apply py-12;
+}
+
+/* Loading overlay */
+.standard-datagrid .MuiDataGrid-loadingOverlay {
+  @apply bg-white/90 dark:bg-gray-800/90;
+}
+
+/* Column menu */
+.standard-datagrid .MuiDataGrid-menuIcon {
+  @apply text-gray-500 dark:text-gray-400;
+  @apply hover:text-gray-700 dark:hover:text-gray-200;
+  @apply transition-colors duration-200;
+}
+
+/* Checkbox styling */
+.standard-datagrid .MuiCheckbox-root {
+  @apply text-blue-500 dark:text-blue-400;
+}
+
+/* Selected row */
+.standard-datagrid .Mui-selected {
+  @apply bg-blue-50 dark:bg-blue-900/30 !important;
+}
+
+/* Cell focus */
+.standard-datagrid .MuiDataGrid-cell:focus,
+.standard-datagrid .MuiDataGrid-cell:focus-within {
+  @apply outline-none ring-2 ring-blue-500/50 dark:ring-blue-400/50;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .standard-datagrid .MuiDataGrid-cell {
+    @apply px-2 py-1;
+    @apply text-sm;
+  }
+  
+  .standard-datagrid .MuiDataGrid-columnHeaderTitle {
+    @apply text-xs;
+  }
+}
+
+/* Search input styling */
+.MuiDataGrid-toolbarContainer .MuiTextField-root {
+  background-color: var(--search-bg);
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.MuiDataGrid-toolbarContainer .MuiTextField-root .MuiOutlinedInput-root {
+  color: var(--search-text);
+}
+
+.MuiDataGrid-toolbarContainer .MuiTextField-root .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline {
+  border-color: var(--search-border);
+}
+
+.MuiDataGrid-toolbarContainer .MuiTextField-root .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+  border-color: var(--search-focus-border);
+}
+
+.MuiDataGrid-toolbarContainer .MuiTextField-root .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+  border-color: var(--search-focus-border);
+  box-shadow: 0 0 0 2px var(--search-focus-shadow);
+}
+
+.MuiDataGrid-toolbarContainer .MuiTextField-root .MuiOutlinedInput-root input::placeholder {
+  color: var(--search-placeholder);
+}
+
+/* Button styling */
+.MuiDataGrid-toolbarContainer .MuiButton-root {
+  background-color: var(--button-bg);
+  color: var(--button-text);
+  border: 1px solid var(--button-border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: none;
+  transition: all 0.2s ease;
+}
+
+.MuiDataGrid-toolbarContainer .MuiButton-root:hover {
+  background-color: var(--button-hover-bg);
+  border-color: var(--button-border);
+}
+
+.MuiDataGrid-toolbarContainer .MuiButton-root:active {
+  background-color: var(--button-active-bg);
+}
+
+.MuiDataGrid-toolbarContainer .MuiButton-root:disabled {
+  background-color: var(--button-disabled-bg);
+  color: var(--button-disabled-text);
+  border-color: var(--button-border);
+  cursor: not-allowed;
+}
+
+/* Primary button styling */
+.MuiDataGrid-toolbarContainer .MuiButton-root.MuiButton-contained {
+  background-color: var(--button-primary-bg);
+  color: var(--button-primary-text);
+  border: none;
+}
+
+.MuiDataGrid-toolbarContainer .MuiButton-root.MuiButton-contained:hover {
+  background-color: var(--button-primary-hover-bg);
+}
+
+.MuiDataGrid-toolbarContainer .MuiButton-root.MuiButton-contained:active {
+  background-color: var(--button-primary-active-bg);
+}
+
+/* Icon button styling */
+.MuiDataGrid-toolbarContainer .MuiIconButton-root {
+  color: var(--button-text);
+  background-color: var(--button-bg);
+  border: 1px solid var(--button-border);
+  border-radius: 6px;
+  padding: 6px;
+  transition: all 0.2s ease;
+}
+
+.MuiDataGrid-toolbarContainer .MuiIconButton-root:hover {
+  background-color: var(--button-hover-bg);
+  border-color: var(--button-border);
+}
+
+.MuiDataGrid-toolbarContainer .MuiIconButton-root:active {
+  background-color: var(--button-active-bg);
+}
+
+.MuiDataGrid-toolbarContainer .MuiIconButton-root:disabled {
+  background-color: var(--button-disabled-bg);
+  color: var(--button-disabled-text);
+  border-color: var(--button-border);
+  cursor: not-allowed;
+}
+
+/* Filter panel button styling */
+.MuiDataGrid-filterForm .MuiButton-root {
+  background-color: var(--button-bg);
+  color: var(--button-text);
+  border: 1px solid var(--button-border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: none;
+  transition: all 0.2s ease;
+}
+
+.MuiDataGrid-filterForm .MuiButton-root:hover {
+  background-color: var(--button-hover-bg);
+  border-color: var(--button-border);
+}
+
+.MuiDataGrid-filterForm .MuiButton-root:active {
+  background-color: var(--button-active-bg);
+}
+
+.MuiDataGrid-filterForm .MuiButton-root:disabled {
+  background-color: var(--button-disabled-bg);
+  color: var(--button-disabled-text);
+  border-color: var(--button-border);
+  cursor: not-allowed;
+}
+
+/* Column menu button styling */
+.MuiDataGrid-columnHeader .MuiIconButton-root {
+  color: var(--button-text);
+  background-color: transparent;
+  border-radius: 4px;
+  padding: 4px;
+  transition: all 0.2s ease;
+}
+
+.MuiDataGrid-columnHeader .MuiIconButton-root:hover {
+  background-color: var(--button-hover-bg);
+}
+
+.MuiDataGrid-columnHeader .MuiIconButton-root:active {
+  background-color: var(--button-active-bg);
+}
+
+/* Menu item styling */
+.MuiDataGrid-menu .MuiMenuItem-root {
+  color: var(--button-text);
+  background-color: var(--button-bg);
+  transition: all 0.2s ease;
+}
+
+.MuiDataGrid-menu .MuiMenuItem-root:hover {
+  background-color: var(--button-hover-bg);
+}
+
+.MuiDataGrid-menu .MuiMenuItem-root:active {
+  background-color: var(--button-active-bg);
+}

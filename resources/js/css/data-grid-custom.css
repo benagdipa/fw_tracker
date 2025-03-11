@@ -1,0 +1,446 @@
+/* Custom styles for MUI DataGrid */
+
+/* Remove cell outline when selected/focused */
+.MuiDataGrid-root .MuiDataGrid-cell:focus,
+.MuiDataGrid-root .MuiDataGrid-cell:focus-within {
+  outline: none !important;
+}
+
+.MuiDataGrid-root .MuiDataGrid-columnHeader:focus,
+.MuiDataGrid-root .MuiDataGrid-columnHeader:focus-within {
+  outline: none !important;
+}
+
+/* Improve row hover styling */
+.MuiDataGrid-root .MuiDataGrid-row:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.dark .MuiDataGrid-root .MuiDataGrid-row:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Header styling */
+.MuiDataGrid-root .MuiDataGrid-columnHeaders {
+  background-color: #f5f7fa;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.dark .MuiDataGrid-root .MuiDataGrid-columnHeaders {
+  background-color: #1e293b;
+  border-bottom: 1px solid #334155;
+}
+
+/* Add border to cells */
+.MuiDataGrid-root .MuiDataGrid-cell {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.dark .MuiDataGrid-root .MuiDataGrid-cell {
+  border-bottom: 1px solid #1e293b;
+}
+
+/* Row selection color */
+.MuiDataGrid-root .MuiDataGrid-row.Mui-selected {
+  background-color: rgba(25, 118, 210, 0.08);
+}
+
+.MuiDataGrid-root .MuiDataGrid-row.Mui-selected:hover {
+  background-color: rgba(25, 118, 210, 0.12);
+}
+
+.dark .MuiDataGrid-root .MuiDataGrid-row.Mui-selected {
+  background-color: rgba(59, 130, 246, 0.16);
+}
+
+.dark .MuiDataGrid-root .MuiDataGrid-row.Mui-selected:hover {
+  background-color: rgba(59, 130, 246, 0.24);
+}
+
+/* Pagination controls */
+.MuiDataGrid-root .MuiTablePagination-root {
+  color: #374151;
+}
+
+.dark .MuiDataGrid-root .MuiTablePagination-root {
+  color: #e2e8f0;
+}
+
+/* Custom editor styling */
+.MuiDataGrid-root .MuiDataGrid-editInputCell {
+  padding: 1px;
+}
+
+.MuiDataGrid-root .MuiInputBase-input {
+  padding: 8px;
+  height: 100%;
+}
+
+/* Empty row overlay styling */
+.MuiDataGrid-root .MuiDataGrid-overlay {
+  background-color: rgba(255, 255, 255, 0.9);
+}
+
+.dark .MuiDataGrid-root .MuiDataGrid-overlay {
+  background-color: rgba(15, 23, 42, 0.9);
+}
+
+/* Add some spacing to the column menu icon */
+.MuiDataGrid-root .MuiDataGrid-columnHeaderTitleContainer {
+  padding-right: 4px;
+}
+
+/* Custom cell styles for certain columns */
+.MuiDataGrid-root .cell-status-completed {
+  color: #16a34a;
+  font-weight: 500;
+}
+
+.MuiDataGrid-root .cell-status-in-progress {
+  color: #0284c7;
+  font-weight: 500;
+}
+
+.MuiDataGrid-root .cell-status-not-started {
+  color: #9333ea;
+  font-weight: 500;
+}
+
+.MuiDataGrid-root .cell-status-critical {
+  color: #dc2626;
+  font-weight: 500;
+}
+
+/* Adjust the footer/toolbar height */
+.MuiDataGrid-root .MuiDataGrid-footerContainer {
+  min-height: 48px;
+}
+
+/* Add styles for horizontal scrolling */
+.custom-data-grid {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.custom-data-grid .MuiDataGrid-main {
+  overflow-x: auto;
+}
+
+.custom-data-grid .MuiDataGrid-virtualScroller {
+  overflow-x: visible !important;
+}
+
+/* Ensure the horizontal scrollbar is visible when needed */
+.custom-data-grid .MuiDataGrid-virtualScrollerContent {
+  min-width: 100% !important;
+}
+
+/* Increase the width of the scrollbar for better visibility */
+.custom-data-grid ::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+
+.custom-data-grid ::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 5px;
+}
+
+.custom-data-grid ::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 5px;
+}
+
+.custom-data-grid ::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Performance optimizations for DataGrid */
+.MuiDataGrid-root {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform;
+}
+
+/* Add hardware acceleration for row animations */
+.MuiDataGrid-row {
+  transition: background-color 0.2s ease;
+  transform: translateZ(0);
+  will-change: transform, background-color;
+}
+
+/* Optimize cell rendering */
+.MuiDataGrid-cell {
+  transition: opacity 0.2s ease;
+  will-change: opacity;
+}
+
+/* Enhance scrolling performance */
+.MuiDataGrid-virtualScroller {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Add animation for row hover */
+.MuiDataGrid-row {
+  transition: all 0.15s ease-in-out;
+}
+
+.MuiDataGrid-row:hover {
+  transform: translateZ(0) scale(1.002);
+  z-index: 1;
+}
+
+/* Add smooth animation for sorting and filtering */
+.MuiDataGrid-columnHeader {
+  transition: background-color 0.2s ease;
+}
+
+.MuiDataGrid-columnHeader--sorted {
+  background-color: rgba(0, 0, 0, 0.04) !important;
+}
+
+/* DataGrid Custom Styles */
+.MuiDataGrid-root {
+  border: none !important;
+  background-color: white;
+}
+
+.MuiDataGrid-columnHeaders {
+  background-color: #f8fafc !important;
+  border-bottom: 1px solid #e5e7eb !important;
+}
+
+.MuiDataGrid-columnHeader {
+  padding: 16px !important;
+}
+
+.MuiDataGrid-columnHeaderTitle {
+  font-weight: 600 !important;
+  color: #1f2937 !important;
+}
+
+.MuiDataGrid-cell {
+  border-bottom: 1px solid #e5e7eb !important;
+  padding: 12px 16px !important;
+}
+
+.MuiDataGrid-row:hover {
+  background-color: #f8fafc !important;
+}
+
+.MuiDataGrid-row.Mui-selected {
+  background-color: #eff6ff !important;
+}
+
+.MuiDataGrid-row.Mui-selected:hover {
+  background-color: #dbeafe !important;
+}
+
+.MuiDataGrid-footerContainer {
+  border-top: 1px solid #e5e7eb !important;
+  background-color: #f8fafc !important;
+}
+
+/* Dark mode support */
+.dark .MuiDataGrid-root {
+  background-color: #1f2937;
+  color: #f3f4f6;
+}
+
+.dark .MuiDataGrid-columnHeaders {
+  background-color: #374151 !important;
+  border-bottom: 1px solid #4b5563 !important;
+}
+
+.dark .MuiDataGrid-columnHeaderTitle {
+  color: #f3f4f6 !important;
+}
+
+.dark .MuiDataGrid-cell {
+  border-bottom: 1px solid #4b5563 !important;
+}
+
+.dark .MuiDataGrid-row:hover {
+  background-color: #374151 !important;
+}
+
+.dark .MuiDataGrid-row.Mui-selected {
+  background-color: #1e40af !important;
+}
+
+.dark .MuiDataGrid-row.Mui-selected:hover {
+  background-color: #1e3a8a !important;
+}
+
+.dark .MuiDataGrid-footerContainer {
+  border-top: 1px solid #4b5563 !important;
+  background-color: #374151 !important;
+}
+
+/* Custom cell renderers */
+.status-chip {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.status-active {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.status-inactive {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.status-pending {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+/* Action buttons */
+.action-button {
+  min-width: 32px !important;
+  padding: 4px !important;
+}
+
+.action-button:hover {
+  background-color: #f3f4f6 !important;
+}
+
+.dark .action-button:hover {
+  background-color: #374151 !important;
+}
+
+/* Loading overlay */
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.dark .loading-overlay {
+  background-color: rgba(31, 41, 55, 0.7);
+}
+
+/* Empty state */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: #6b7280;
+}
+
+.dark .empty-state {
+  color: #9ca3af;
+}
+
+/* Pagination controls */
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+}
+
+.rows-per-page {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rows-per-page select {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #e5e7eb;
+  background-color: white;
+}
+
+.dark .rows-per-page select {
+  background-color: #374151;
+  border-color: #4b5563;
+  color: #f3f4f6;
+}
+
+/* Search field */
+.search-field {
+  width: 100%;
+  max-width: 24rem;
+  position: relative;
+}
+
+.search-field input {
+  width: 100%;
+  padding: 8px 12px 8px 40px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  background-color: #f9fafb;
+}
+
+.dark .search-field input {
+  background-color: #374151;
+  border-color: #4b5563;
+  color: #f3f4f6;
+}
+
+.search-field svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+}
+
+/* Filter buttons */
+.filter-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  background-color: white;
+  color: #374151;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.dark .filter-button {
+  background-color: #374151;
+  border-color: #4b5563;
+  color: #f3f4f6;
+}
+
+.filter-button:hover {
+  background-color: #f3f4f6;
+}
+
+.dark .filter-button:hover {
+  background-color: #4b5563;
+}
+
+.filter-button.active {
+  background-color: #eff6ff;
+  border-color: #3b82f6;
+  color: #1d4ed8;
+}
+
+.dark .filter-button.active {
+  background-color: #1e40af;
+  border-color: #3b82f6;
+  color: #eff6ff;
+} 
