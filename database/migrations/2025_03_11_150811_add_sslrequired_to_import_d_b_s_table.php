@@ -12,7 +12,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('import_d_b_s', function (Blueprint $table) {
-            $table->boolean('sslrequired')->default(false);
+            // Check if the column already exists before trying to add it
+            if (!Schema::hasColumn('import_d_b_s', 'sslrequired')) {
+                $table->boolean('sslrequired')->default(false);
+            }
         });
     }
 
@@ -22,7 +25,9 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('import_d_b_s', function (Blueprint $table) {
-            $table->dropColumn('sslrequired');
+            if (Schema::hasColumn('import_d_b_s', 'sslrequired')) {
+                $table->dropColumn('sslrequired');
+            }
         });
     }
 };

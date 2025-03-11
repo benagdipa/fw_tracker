@@ -6,13 +6,38 @@ use Illuminate\Database\Migrations\Migration;
 
 return new class extends Migration
 {
-    public function up()
-    {
+    public function up() {
         $tableNames = config('permission.table_names');
         $columnNames = config('permission.column_names');
         $teams = config('permission.teams');
 
+        // Check if this migration has already been run
+        if (Schema::hasTable($tableNames['permissions']) &&
+            Schema::hasTable($tableNames['roles']) &&
+            Schema::hasTable($tableNames['model_has_permissions']) &&
+            Schema::hasTable($tableNames['model_has_roles']) &&
+            Schema::hasTable($tableNames['role_has_permissions'])) {
+            return; // Skip if all tables already exist
+        }
+
+        $columnNames = config('permission.column_names');
+        $teams = config('permission.teams');
+
+        // Check if this migration has already been run
+        if (Schema::hasTable($tableNames['permissions']) && 
+            Schema::hasTable($tableNames['roles']) && 
+            Schema::hasTable($tableNames['model_has_permissions']) &&
+            Schema::hasTable($tableNames['model_has_roles']) &&
+            Schema::hasTable($tableNames['role_has_permissions'])) {
+            $this->down();
+        }
+
         Schema::create($tableNames['permissions'], function (Blueprint $table) {
+            // Check if table already exists - skip if it does
+            if (Schema::hasTable($tableNames['permissions'])) {
+                return;
+            }
+            
             $table->bigIncrements('id');
             $table->string('name');
             $table->string('guard_name');
@@ -22,6 +47,11 @@ return new class extends Migration
         });
 
         Schema::create($tableNames['roles'], function (Blueprint $table) use ($teams) {
+            // Check if table already exists - skip if it does
+            if (Schema::hasTable($tableNames['roles'])) {
+                return;
+            }
+            
             $table->bigIncrements('id');
             if ($teams || config('permission.testing')) {
                 $table->unsignedBigInteger($columnNames['team_foreign_key'])->nullable();
@@ -38,15 +68,23 @@ return new class extends Migration
         });
 
         Schema::create($tableNames['model_has_permissions'], function (Blueprint $table) use ($tableNames, $columnNames, $teams) {
+            // Check if table already exists - skip if it does
+            if (Schema::hasTable($tableNames['model_has_permissions'])) {
+                return;
+            }
+            
             $table->unsignedBigInteger('permission_id');
             $table->string('model_type');
             $table->unsignedBigInteger($columnNames['model_morph_key']);
             $table->index([$columnNames['model_morph_key'], 'model_type'], 'model_has_permissions_model_id_model_type_index');
 
-            $table->foreign('permission_id')
-                ->references('id')
-                ->on($tableNames['permissions'])
-                ->onDelete('cascade');
+            // Only create foreign keys if the referenced tables exist
+            if (Schema::hasTable($tableNames['permissions'])) {
+                $table->foreign('permission_id')
+                    ->references('id')
+                    ->on($tableNames['permissions'])
+                    ->onDelete('cascade');
+            }
 
             if ($teams) {
                 $table->unsignedBigInteger($columnNames['team_foreign_key']);
@@ -61,15 +99,23 @@ return new class extends Migration
         });
 
         Schema::create($tableNames['model_has_roles'], function (Blueprint $table) use ($tableNames, $columnNames, $teams) {
+            // Check if table already exists - skip if it does
+            if (Schema::hasTable($tableNames['model_has_roles'])) {
+                return;
+            }
+            
             $table->unsignedBigInteger('role_id');
             $table->string('model_type');
             $table->unsignedBigInteger($columnNames['model_morph_key']);
             $table->index([$columnNames['model_morph_key'], 'model_type'], 'model_has_roles_model_id_model_type_index');
 
-            $table->foreign('role_id')
-                ->references('id')
-                ->on($tableNames['roles'])
-                ->onDelete('cascade');
+            // Only create foreign keys if the referenced tables exist
+            if (Schema::hasTable($tableNames['roles'])) {
+                $table->foreign('role_id')
+                    ->references('id')
+                    ->on($tableNames['roles'])
+                    ->onDelete('cascade');
+            }
 
             if ($teams) {
                 $table->unsignedBigInteger($columnNames['team_foreign_key']);
@@ -84,18 +130,28 @@ return new class extends Migration
         });
 
         Schema::create($tableNames['role_has_permissions'], function (Blueprint $table) use ($tableNames) {
+            // Check if table already exists - skip if it does
+            if (Schema::hasTable($tableNames['role_has_permissions'])) {
+                return;
+            }
+            
             $table->unsignedBigInteger('permission_id');
             $table->unsignedBigInteger('role_id');
 
-            $table->foreign('permission_id')
-                ->references('id')
-                ->on($tableNames['permissions'])
-                ->onDelete('cascade');
+            // Only create foreign keys if the referenced tables exist
+            if (Schema::hasTable($tableNames['permissions'])) {
+                $table->foreign('permission_id')
+                    ->references('id')
+                    ->on($tableNames['permissions'])
+                    ->onDelete('cascade');
+            }
 
-            $table->foreign('role_id')
-                ->references('id')
-                ->on($tableNames['roles'])
-                ->onDelete('cascade');
+            if (Schema::hasTable($tableNames['roles'])) {
+                $table->foreign('role_id')
+                    ->references('id')
+                    ->on($tableNames['roles'])
+                    ->onDelete('cascade');
+            }
 
             $table->primary(['permission_id', 'role_id'], 'role_has_permissions_permission_id_role_id_primary');
         });
@@ -120,3 +176,4 @@ return new class extends Migration
         Schema::dropIfExists($tableNames['permissions']);
     }
 }; 
+
