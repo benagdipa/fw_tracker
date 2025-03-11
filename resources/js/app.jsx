@@ -41,6 +41,9 @@ const materialTailwindConfig = {
                 900: '#005876',
             },
         },
+        shape: {
+            borderRadius: '0.375rem',
+        },
         components: {
             button: {
                 defaultProps: {
