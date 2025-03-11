@@ -318,30 +318,31 @@ export default function Index({
 
   // Initialize data
   useEffect(() => {
-    try {
-      if (sites?.data) {
-        const processedData = sites.data.map(site => {
-          const trackingData = site.tracking || {};
-          const startDate = site.start_date ? new Date(site.start_date) : null;
-          const endDate = site.end_date ? new Date(site.end_date) : null;
-          
-          return {
-            ...site,
-            ...trackingData,
-            start_date: startDate,
-            end_date: endDate,
-            site_name: site.siteName || site.site_name,
-            status: site.status || trackingData.status || 'not_started'
-          };
-        });
+    if (sites?.data) {
+      try {
+        const processedData = sites.data.map(site => ({
+          id: site.id,
+          site_name: site.site_name || site.siteName || '',
+          category: site.category || '',
+          eNB_gNB: site.eNB_gNB || '',
+          implementor: site.implementor || '',
+          status: site.status || 'not_started',
+          start_date: site.start_date ? new Date(site.start_date) : null,
+          end_date: site.end_date ? new Date(site.end_date) : null,
+          progress: site.progress || 0,
+          notes: site.notes || '',
+          created_at: site.created_at,
+          updated_at: site.updated_at
+        }));
         
         setRows(processedData);
         setTotalRows(sites.total || processedData.length);
+      } catch (err) {
+        console.error('Error processing implementation data:', err);
+        toast.error('Error loading implementation data');
       }
-    } catch (err) {
-      handleError(err);
     }
-  }, [sites, handleError]);
+  }, [sites]);
 
   // Edit row handler
   const handleRowEdit = (id) => {
@@ -720,6 +721,142 @@ export default function Index({
     router.reload();
   };
 
+  // Update the fetchData function
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get(route('implementation.field.name.index'), {
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+        },
+        params: {
+          search: searchText,
+          per_page: pageSize,
+          status: statusFilter,
+          start_date: dateFilter.startDate?.toISOString().split('T')[0],
+          end_date: dateFilter.endDate?.toISOString().split('T')[0],
+          include_deleted: false
+        }
+      });
+
+      // Handle session expiration without auto-refresh
+      if (typeof response.data === 'string' && response.data.includes('<!DOCTYPE html>')) {
+        toast.error(
+          (t) => (
+            <div className="flex flex-col gap-2">
+              <span>Session expired. Please refresh the page.</span>
+              <Button
+                size="sm"
+                color="blue"
+                onClick={() => {
+                  toast.dismiss(t.id);
+                  window.location.reload();
+                }}
+              >
+                Refresh Page
+              </Button>
+            </div>
+          ),
+          { duration: 0 } // Don't auto-dismiss
+        );
+        setRows([]);
+        return;
+      }
+
+      if (response.data.implementations && response.data.implementations.data) {
+        const processedData = response.data.implementations.data.map(item => ({
+          id: item.id,
+          site_name: item.site_name || '',
+          category: item.category || '',
+          eNB_gNB: item.eNB_gNB || '',
+          implementor: item.implementor || '',
+          status: item.status || 'not_started',
+          start_date: item.start_date || null,
+          end_date: item.end_date || null,
+          progress: item.progress || 0,
+          notes: item.notes || '',
+          created_at: item.created_at,
+          updated_at: item.updated_at
+        }));
+
+        setRows(processedData);
+        setTotalRows(response.data.implementations.total || 0);
+      } else if (response.data.error) {
+        toast.error(response.data.error);
+        setRows([]);
+      } else {
+        console.error('Invalid data format received:', response.data);
+        toast.error('Error loading data: Invalid format');
+        setRows([]);
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      if (error.response?.status === 401 || error.response?.status === 419) {
+        toast.error(
+          (t) => (
+            <div className="flex flex-col gap-2">
+              <span>Session expired. Please refresh the page.</span>
+              <Button
+                size="sm"
+                color="blue"
+                onClick={() => {
+                  toast.dismiss(t.id);
+                  window.location.reload();
+                }}
+              >
+                Refresh Page
+              </Button>
+            </div>
+          ),
+          { duration: 0 } // Don't auto-dismiss
+        );
+      } else {
+        toast.error('Error loading data: ' + (error.response?.data?.message || error.message));
+      }
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Update the useEffect dependencies
+  useEffect(() => {
+    if (!loading) {
+      fetchData();
+    }
+  }, [pageSize, searchText, statusFilter, dateFilter.startDate, dateFilter.endDate]);
+
+  // Add handleSortChange function before the return statement
+  const handleSortChange = useCallback((sortModel) => {
+    if (sortModel.length === 0) return;
+    
+    const field = sortModel[0].field;
+    const sort = sortModel[0].sort;
+    
+    setLoading(true);
+    router.get(
+      route('implementation.field.name.index'),
+      {
+        ...router.page,
+        sort_by: field,
+        sort_direction: sort,
+        per_page: pageSize,
+        search: searchText
+      },
+      {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: () => setLoading(false),
+        onError: (err) => {
+          setLoading(false);
+          handleError(err);
+        }
+      }
+    );
+  }, [pageSize, searchText]);
+
   // Try-catch block for rendering
   try {
     return (
@@ -800,6 +937,17 @@ export default function Index({
                         )}
                       </div>
                       <div className="flex items-center gap-2 ml-auto">
+                        {/* Import Button */}
+                        <Button
+                          size="sm"
+                          variant="outlined"
+                          color="blue"
+                          className="flex items-center gap-2 bg-white"
+                          onClick={() => setImportModalOpen(true)}
+                        >
+                          <FileUploadIcon className="h-4 w-4" />
+                          Import
+                        </Button>
                         <ExportButton
                           onExport={handleExport}
                           loading={loading}
@@ -891,66 +1039,42 @@ export default function Index({
                         rows={rows}
                         columns={columns}
                         loading={loading}
-                        pageSize={pageSize}
-                        rowCount={totalRows}
-                        paginationMode="server"
-                        onPageChange={(newPage) => setPage(newPage)}
-                        onPageSizeChange={(newPageSize) => setPageSize(newPageSize)}
-                        onCellEditCommit={handleCellEdit}
-                        disableSelectionOnClick
-                        autoHeight
                         getRowId={(row) => row.id}
-                        className="bg-white dark:bg-gray-800"
-                        rowsPerPageOptions={[100]}
-                        initialState={{
-                          pagination: {
-                            pageSize: 100,
-                          },
+                        onSave={handleSave}
+                        onDelete={handleDelete}
+                        onCellEditCommit={handleCellEditCommit}
+                        selectedRows={selectedRows}
+                        setSelectedRows={setSelectedRows}
+                        perPage={pageSize}
+                        onPageSizeChange={(newPageSize) => setPageSize(newPageSize)}
+                        paginationModel={{
+                          page: sites?.current_page - 1 || 0,
+                          pageSize: pageSize
                         }}
+                        autoHeight={false}
+                        className="h-full"
+                        paginationMode="server"
+                        rowCount={totalRows}
+                        sortingMode="server"
+                        onSortModelChange={handleSortChange}
                         components={{
+                          LoadingOverlay: () => (
+                            <div className="flex items-center justify-center h-full">
+                              <LoadingIndicator />
+                            </div>
+                          ),
                           NoRowsOverlay: () => (
-                            <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400">
-                              <p>No records found</p>
-                              {searchText && (
-                                <p className="text-sm mt-2">
-                                  Try adjusting your search or filters
-                                </p>
-                              )}
-                            </div>
-                          ),
-                          ErrorOverlay: () => (
-                            <div className="flex flex-col items-center justify-center h-64 text-red-500">
-                              <p>Error loading data</p>
-                              <Button
-                                color="red"
-                                variant="text"
-                                size="sm"
-                                className="mt-2"
-                                onClick={() => router.reload()}
-                              >
-                                Retry
-                              </Button>
-                            </div>
-                          ),
-                          Footer: () => (
-                            <div className="flex items-center justify-between px-4 py-2 border-t">
-                              <div className="flex items-center gap-2">
-                                <Typography variant="small" className="text-gray-600">
-                                  Rows per page:
-                                </Typography>
-                                <select
-                                  value={pageSize}
-                                  onChange={(e) => setPageSize(Number(e.target.value))}
-                                  className="border rounded px-2 py-1 text-sm"
-                                >
-                                  <option value={100}>100</option>
-                                </select>
-                              </div>
-                              <Typography variant="small" className="text-gray-600">
-                                {`1–${Math.min(pageSize, totalRows)} of ${totalRows}`}
+                            <div className="flex items-center justify-center h-full">
+                              <Typography color="gray">
+                                {searchText ? 'No matching records found' : 'No records available'}
                               </Typography>
                             </div>
                           ),
+                        }}
+                        initialState={{
+                          sorting: {
+                            sortModel: [{ field: 'updated_at', sort: 'desc' }],
+                          },
                         }}
                       />
                     </div>
@@ -966,10 +1090,25 @@ export default function Index({
           isOpen={importModalOpen}
           onClose={() => setImportModalOpen(false)}
           title="Import Implementation Data"
-          description="Import implementation data from CSV or Excel file. Download the template for the correct format."
-          templateUrl="/api/implementation/template/download"
-          importUrl="/api/implementation/import"
-          requiredFields={['siteName', 'category', 'status']}
+          description="Import implementation data from CSV file. Download the template for the correct format."
+          templateUrl="/templates/implementation_template.csv"
+          importUrl={route('implementation.import.file')}
+          requiredFields={[
+            'site_name',
+            'cell_name',
+            'category',
+            'implementor',
+            'status',
+            'notes',
+            'enm_scripts_path',
+            'sp_scripts_path',
+            'CRQ',
+            'start_date',
+            'end_date',
+            'address',
+            'lat',
+            'lng'
+          ]}
           onImportComplete={() => {
             refreshPage();
           }}

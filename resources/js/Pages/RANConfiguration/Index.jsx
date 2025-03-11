@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Head, router } from "@inertiajs/react";
-import { Card, Tabs, TabsHeader, Tab, Button, Dialog, DialogHeader, DialogFooter, Input, Select, Option, Alert, Typography, Checkbox, Spinner } from "@material-tailwind/react";
+import { Card, Tabs, TabsHeader, Tab, Button, Dialog, DialogHeader, DialogFooter, Input, Select, Option, Alert, Typography, Checkbox, Spinner, Box, CircularProgress } from "@material-tailwind/react";
 import toast from "react-hot-toast";
 import axios from "axios";
+import { DataGrid } from '@mui/x-data-grid';
 
 // Components
 import Authenticated from "@/Layouts/AuthenticatedLayout";
@@ -47,6 +48,50 @@ import {
   processColumns,
 } from "@/Utils/GridUtils";
 
+function TabPanel(props) {
+    const { children, value, index, ...other } = props;
+    return (
+        <div
+            role="tabpanel"
+            hidden={value !== index}
+            id={`ran-tabpanel-${index}`}
+            aria-labelledby={`ran-tab-${index}`}
+            {...other}
+        >
+            {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
+        </div>
+    );
+}
+
+const LoadingOverlay = () => (
+    <Box
+        sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '100%'
+        }}
+    >
+        <CircularProgress />
+        <Typography sx={{ mt: 2 }}>Loading data...</Typography>
+    </Box>
+);
+
+const NoRowsOverlay = () => (
+    <Box
+        sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '100%'
+        }}
+    >
+        <Typography>No data available</Typography>
+    </Box>
+);
+
 const Index = ({ auth }) => {
   const [loading, setLoading] = useState(true);
   const [structParamsData, setStructParamsData] = useState([]);
@@ -77,44 +122,189 @@ const Index = ({ auth }) => {
   const [importType, setImportType] = useState('parameters'); // or 'struct_parameters'
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    const controller = new AbortController();
+    
+    fetchData().catch(error => {
+      if (!axios.isCancel(error)) {
+        console.error("Effect error:", error);
+      }
+    });
+    
+    return () => {
+      controller.abort();
+    };
+  }, [activeTab, pageSize, searchText]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/ran-configuration/excel-data');
-      
+      const response = await axios.get('/api/ran-configuration/excel-data', {
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+        },
+        params: {
+          search: searchText || '',
+          per_page: pageSize || 10,
+          type: activeTab === "structParameters" ? "struct_parameters" : "parameters",
+          include_deleted: false // Add this parameter to explicitly exclude deleted records
+        }
+      });
+
+      // Handle session expiration without auto-refresh
+      if (typeof response.data === 'string' && response.data.includes('<!DOCTYPE html>')) {
+        toast.error(
+          (t) => (
+            <div className="flex flex-col gap-2">
+              <span>Session expired. Please refresh the page.</span>
+              <Button
+                size="sm"
+                color="blue"
+                onClick={() => {
+                  toast.dismiss(t.id);
+                  window.location.reload();
+                }}
+              >
+                Refresh Page
+              </Button>
+            </div>
+          ),
+          { duration: 0 }
+        );
+        setStructParamsData([]);
+        setParamsData([]);
+        return;
+      }
+
       if (response.data.success) {
-        const { structParameters, parameters, stats } = response.data.data;
+        const { structParameters, parameters, stats } = response.data.data || {};
         
-        // Set the data for both tabs
-        setStructParamsData(structParameters.data.map((row, index) => ({
-          id: row.id || index + 1,
-          ...row
-        })));
+        if (activeTab === "structParameters" && structParameters?.data) {
+          const processedStructData = structParameters.data.map(item => ({
+            id: item.id || 0,
+            model: item.model || '',
+            mo_class_name: item.mo_class_name || '',
+            parameter_name: item.parameter_name || '',
+            seq: item.seq ? parseInt(item.seq) : null,
+            parameter_description: item.parameter_description || '',
+            data_type: item.data_type || '',
+            range: item.range || '',
+            def: item.def || '',
+            mul: Boolean(item.mul),
+            unit: item.unit || '',
+            rest: item.rest || '',
+            read: item.read || '',
+            restr: item.restr || '',
+            manc: item.manc || '',
+            pers: item.pers || '',
+            syst: item.syst || '',
+            change: item.change || '',
+            dist: item.dist || '',
+            dependencies: item.dependencies || '',
+            dep: item.dep || '',
+            obs: item.obs || '',
+            prec: item.prec || '',
+            status: item.status || 'active',
+            created_at: item.created_at || new Date().toISOString(),
+            updated_at: item.updated_at || new Date().toISOString()
+          })).filter(item => item.id > 0); // Filter out any items with invalid IDs
+          
+          setStructParamsData(processedStructData);
+        }
         
-        setParamsData(parameters.data.map((row, index) => ({
-          id: row.id || index + 1,
-          ...row
-        })));
+        if (activeTab === "parameters" && parameters?.data) {
+          const processedParamData = parameters.data.map(item => ({
+            id: item.id || 0,
+            parameter_id: item.parameter_id || '',
+            parameter_name: item.parameter_name || '',
+            parameter_value: item.parameter_value || '',
+            description: item.description || '',
+            domain: item.domain || '',
+            data_type: item.data_type || '',
+            mo_reference: item.mo_reference || '',
+            default_value: item.default_value || '',
+            category: item.category || '',
+            technology: item.technology || '',
+            vendor: item.vendor || '',
+            applicability: item.applicability || '',
+            status: item.status || 'active',
+            created_at: item.created_at || new Date().toISOString(),
+            updated_at: item.updated_at || new Date().toISOString()
+          })).filter(item => item.id > 0); // Filter out any items with invalid IDs
+          
+          setParamsData(processedParamData);
+        }
         
-        // Set stats
-        setStats({
-          totalParameters: stats.totalParameters,
-          activeParameters: stats.activeParameters,
-          technologyDistribution: stats.technologies.reduce((acc, tech) => {
-            acc[tech] = (acc[tech] || 0) + 1;
-            return acc;
-          }, {}),
-          uniqueTypes: new Set(structParameters.data.map(row => row.data_type).filter(Boolean)).size
+        setStats(stats || {
+          totalParameters: 0,
+          activeParameters: 0,
+          technologyDistribution: {},
+          uniqueTypes: 0
         });
       } else {
-        toast.error("Failed to load RAN Configuration data");
+        console.error("API Response:", response.data);
+        const errorMessage = response.data?.message || "Failed to load RAN Configuration data";
+        
+        // Check for specific database errors
+        if (errorMessage.includes('SQLSTATE[42703]')) {
+          toast.error(
+            (t) => (
+              <div className="flex flex-col gap-2">
+                <span>Database schema error detected.</span>
+                <span className="text-xs text-gray-500">Please run database migrations or contact administrator.</span>
+                <Button
+                  size="sm"
+                  color="blue"
+                  onClick={() => {
+                    toast.dismiss(t.id);
+                    window.location.reload();
+                  }}
+                >
+                  Refresh Page
+                </Button>
+              </div>
+            ),
+            { duration: 0 }
+          );
+        } else {
+          toast.error(errorMessage);
+        }
+        
+        if (activeTab === "structParameters") {
+          setStructParamsData([]);
+        } else {
+          setParamsData([]);
+        }
       }
     } catch (error) {
       console.error("Error fetching data:", error);
-      toast.error("An error occurred while loading data");
+      
+      // Check if it's a database schema error
+      if (error.response?.data?.message?.includes('SQLSTATE[42703]')) {
+        toast.error(
+          (t) => (
+            <div className="flex flex-col gap-2">
+              <span>Database schema error detected.</span>
+              <span className="text-xs text-gray-500">Please run database migrations or contact administrator.</span>
+              <Button
+                size="sm"
+                color="blue"
+                onClick={() => {
+                  toast.dismiss(t.id);
+                  window.location.reload();
+                }}
+              >
+                Refresh Page
+              </Button>
+            </div>
+          ),
+          { duration: 0 }
+        );
+      }
+      
+      setStructParamsData([]);
+      setParamsData([]);
     } finally {
       setLoading(false);
     }
@@ -573,6 +763,20 @@ const Index = ({ auth }) => {
                     )}
                   </div>
                   <div className="flex items-center gap-2 ml-auto">
+                    {/* Import Button */}
+                    <Button
+                      size="sm"
+                      variant="outlined"
+                      color="blue"
+                      className="flex items-center gap-2"
+                      onClick={() => {
+                        setImportType(activeTab === "structParameters" ? "struct_parameters" : "parameters");
+                        setImportModalOpen(true);
+                      }}
+                    >
+                      <DownloadIcon className="h-4 w-4" />
+                      Import
+                    </Button>
                     <ExportButton
                       onExport={handleExport}
                       loading={loading}
@@ -608,7 +812,7 @@ const Index = ({ auth }) => {
                   </Tabs>
 
                   <div className="border rounded-lg overflow-hidden mt-4">
-                    <DataGridComponent
+                    <DataGrid
                       rows={(activeTab === "structParameters" ? filteredStructParamsData : filteredParamsData).filter(row => row && row.id != null)}
                       columns={(activeTab === "structParameters" ? getStructParamsColumns() : getParamsColumns()).filter(col => col && col.field && !['actions'].includes(col.field))}
                       loading={loading}
@@ -621,49 +825,8 @@ const Index = ({ auth }) => {
                         },
                       }}
                       components={{
-                        NoRowsOverlay: () => (
-                          <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-                            <p>No records found</p>
-                            {searchText && (
-                              <p className="text-sm mt-2">
-                                Try adjusting your search or filters
-                              </p>
-                            )}
-                          </div>
-                        ),
-                        ErrorOverlay: () => (
-                          <div className="flex flex-col items-center justify-center h-64 text-red-500">
-                            <p>Error loading data</p>
-                            <Button
-                              color="red"
-                              variant="text"
-                              size="sm"
-                              className="mt-2"
-                              onClick={() => fetchData()}
-                            >
-                              Retry
-                            </Button>
-                          </div>
-                        ),
-                        Footer: () => (
-                          <div className="flex items-center justify-between px-4 py-2 border-t">
-                            <div className="flex items-center gap-2">
-                              <Typography variant="small" className="text-gray-600">
-                                Rows per page:
-                              </Typography>
-                              <select
-                                value={pageSize}
-                                onChange={(e) => setPageSize(Number(e.target.value))}
-                                className="border rounded px-2 py-1 text-sm"
-                              >
-                                <option value={100}>100</option>
-                              </select>
-                            </div>
-                            <Typography variant="small" className="text-gray-600">
-                              {`1–${Math.min(pageSize, activeTab === "structParameters" ? filteredStructParamsData.length : filteredParamsData.length)} of ${activeTab === "structParameters" ? filteredStructParamsData.length : filteredParamsData.length}`}
-                            </Typography>
-                          </div>
-                        ),
+                        LoadingOverlay: LoadingOverlay,
+                        NoRowsOverlay: NoRowsOverlay,
                       }}
                     />
                   </div>
@@ -710,13 +873,39 @@ const Index = ({ auth }) => {
           isOpen={importModalOpen}
           onClose={() => setImportModalOpen(false)}
           title={`Import ${importType === 'parameters' ? 'Parameters' : 'Struct Parameters'}`}
-          description="Import RAN configuration data from CSV or Excel file. Download the template for the correct format."
-          templateUrl={`/api/ran/${importType}/template/download`}
-          importUrl="/api/ran/import"
+          description="Import RAN configuration data from CSV file. Download the template for the correct format."
+          templateUrl={importType === 'parameters' ? '/templates/ran_parameters_template.csv' : '/templates/ran_struct_parameters_template.csv'}
+          importUrl={route('ran.configuration.import.file')}
           requiredFields={
             importType === 'parameters' 
-              ? ['parameter_id', 'parameter_name', 'parameter_value']
-              : ['parameter_name', 'mo_class_name']
+              ? [
+                  'parameter_id',
+                  'parameter_name',
+                  'parameter_value',
+                  'description',
+                  'domain',
+                  'data_type',
+                  'value_range',
+                  'mo_reference',
+                  'default_value',
+                  'category',
+                  'technology',
+                  'vendor',
+                  'applicability',
+                  'status',
+                  'type',
+                  'value',
+                  'unit'
+                ]
+              : [
+                  'model',
+                  'mo_class_name',
+                  'parameter_name',
+                  'seq',
+                  'technology',
+                  'vendor',
+                  'status'
+                ]
           }
           onImportComplete={() => {
             refreshPage();

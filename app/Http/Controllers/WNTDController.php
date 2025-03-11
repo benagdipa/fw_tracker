@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use League\Csv\Reader;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -25,151 +26,98 @@ class WNTDController extends Controller
     public function index(Request $request)
     {
         try {
-            // Get sorting, searching and pagination parameters
-            $order = $request->input('order', 'asc');
-            $orderBy = $request->input('order_by', 'id');
-            $searchQuery = $request->input('search');
-            $perPage = $request->input('per_page');
-            $statusFilter = $request->input('status');
-            $startDate = $request->input('start_date');
-            $endDate = $request->input('end_date');
+            $order = $request->input('order');
+            $order_by = $request->input('order_by') ? $request->input('order_by') : 'id';
+            $search_query = $request->input('search');
+            $per_page = $request->input('per_page') && strtolower($request->input('per_page')) === 'all' ? PHP_INT_MAX : ($request->input('per_page') ? $request->input('per_page') : 10);
             
-            // Validate pagination parameter
-            if (!$perPage || $perPage === 'all') {
-                $perPage = PHP_INT_MAX;
-            } else {
-                $perPage = intval($perPage) > 0 ? intval($perPage) : 10;
+            // Build the base query
+            $query = WNTD::query();
+            
+            // Process request parameters
+            $includeDeleted = $request->input('include_deleted', false);
+            
+            // Include soft-deleted records if requested, otherwise use the default behavior
+            if ($includeDeleted) {
+                $query->withTrashed();
             }
-            
-            try {
-                // Create a database-agnostic query builder using the new WNTD model
-                $wntdQuery = WNTD::query();
-                
-                // Apply search if provided - using the search scope
-                if ($searchQuery) {
-                    $wntdQuery = $wntdQuery->search($searchQuery);
-                }
-                
-                // Apply status filter if provided
-                if ($statusFilter) {
-                    $wntdQuery = $wntdQuery->filterByStatus($statusFilter);
-                }
-                
-                // Apply date filtering if provided
-                if ($startDate || $endDate) {
-                    $wntdQuery = $wntdQuery->filterByDateRange($startDate, $endDate);
-                }
-                
-                // Apply sorting - using proper column quoting for PostgreSQL
-                if (DB::connection()->getDriverName() === 'pgsql') {
-                    $wntdQuery->orderByRaw("\"{$orderBy}\" {$order}");
-                } else {
-                    $wntdQuery->orderBy($orderBy, $order);
-                }
-                
-                // Get the paginated results
-                $wntdRecords = $wntdQuery->paginate($perPage);
-                
-                // Calculate additional statistics for the UI
-                
-                // 1. Count unique WNTD values (PostgreSQL-compatible)
-                $uniqueWNTDsQuery = WNTD::whereNotNull('wntd')
-                    ->whereRaw('TRIM(wntd) != \'\'');
-                
-                if (DB::connection()->getDriverName() === 'pgsql') {
-                    $uniqueWNTDs = $uniqueWNTDsQuery->distinct('wntd')->count('wntd');
-                } else {
-                    $uniqueWNTDs = $uniqueWNTDsQuery->distinct()->count('wntd');
-                }
-                
-                // 2. Get distinct bandwidth profiles with counts
-                $bwProfilesQuery = DB::table('wntd')
-                    ->select('bw_profile', DB::raw('COUNT(*) as count'))
-                    ->whereNotNull('bw_profile')
-                    ->whereRaw('TRIM(bw_profile) != \'\'')
-                    ->groupBy('bw_profile')
-                    ->orderBy('count', 'desc');
-                
-                $bwProfiles = $bwProfilesQuery->get();
-                
-                // Get status statistics
-                $statusStats = DB::table('wntd')
-                    ->select('status', DB::raw('COUNT(*) as count'))
-                    ->whereNotNull('status')
-                    ->whereRaw('TRIM(status) != \'\'')
-                    ->groupBy('status')
-                    ->orderBy('count', 'desc')
-                    ->get();
-                
-                // Get total WNTD count
-                $totalWNTD = WNTD::count();
-                
-                // Format date filters for display
-                $formattedFilters = [
-                    'search' => $searchQuery,
-                    'status' => $statusFilter,
-                    'start_date' => $startDate,
-                    'end_date' => $endDate
-                ];
-                
-                // Prepare response data
-                $statistics = [
-                    'total' => $totalWNTD,
-                    'unique' => $uniqueWNTDs,
-                    'bandwidth_profiles' => $bwProfiles,
-                    'status_distribution' => $statusStats
-                ];
-                
-                return Inertia::render('WNTD/Index', [
-                    'sites' => $wntdRecords,
-                    'statistics' => $statistics,
-                    'get_data' => [
-                        'order' => $order,
-                        'order_by' => $orderBy,
-                        'search' => $searchQuery,
-                        'per_page' => $perPage == PHP_INT_MAX ? 'all' : $perPage,
-                        'status' => $statusFilter,
-                        'start_date' => $startDate,
-                        'end_date' => $endDate
-                    ],
-                    'filters' => $formattedFilters,
-                    'batch' => $request->session()->get('batch', [])
-                ]);
-                
-            } catch (\Throwable $e) {
-                Log::error('Error querying WNTD data: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'request' => $request->all()
-                ]);
-                
-                // Return a fallback response with error message
-                return Inertia::render('WNTD/Index', [
-                    'sites' => [],
-                    'statistics' => [
-                        'total' => 0,
-                        'unique' => 0,
-                        'bandwidth_profiles' => [],
-                        'status_distribution' => []
-                    ],
-                    'get_data' => [
-                        'order' => $order,
-                        'order_by' => $orderBy,
-                        'search' => $searchQuery,
-                        'per_page' => $perPage == PHP_INT_MAX ? 'all' : $perPage
-                    ],
-                    'error' => $e->getMessage(),
-                    'batch' => $request->session()->get('batch', [])
-                ]);
+
+            // Apply search if provided
+            if ($search_query) {
+                $columns = \Schema::getColumnListing('wntd');
+                $query->where(function ($subQuery) use ($search_query, $columns) {
+                    foreach ($columns as $column) {
+                        $subQuery->orWhere($column, 'LIKE', '%' . $search_query . '%');
+                    }
+                });
             }
-            
-        } catch (\Throwable $e) {
-            Log::error('Unhandled exception in WNTD index: ' . $e->getMessage(), [
-                'exception' => $e
+
+            // Apply filters if provided
+            if ($request->input('filter_by') && $request->input('value')) {
+                $query->where($request->input('filter_by'), $request->input('value'));
+            }
+
+            // Apply ordering
+            $query->orderBy($order_by, $order ?: 'asc');
+
+            // Get paginated results
+            $wntdData = $query->paginate($per_page);
+
+            // Process each WNTD record to ensure consistent data format
+            $processedData = $wntdData->map(function ($wntd) {
+                $data = $wntd->toArray();
+
+                // Ensure consistent field names and data types
+                return array_merge($data, [
+                    'id' => $wntd->id,
+                    'site_name' => $data['site_name'] ?? null,
+                    'loc_id' => $data['loc_id'] ?? null,
+                    'wntd' => $data['wntd'] ?? null,
+                    'imsi' => $data['imsi'] ?? null,
+                    'version' => $data['version'] ?? null,
+                    'avc' => $data['avc'] ?? null,
+                    'bw_profile' => $data['bw_profile'] ?? null,
+                    'lon' => is_numeric($data['lon']) ? (float)$data['lon'] : null,
+                    'lat' => is_numeric($data['lat']) ? (float)$data['lat'] : null,
+                    'home_cell' => $data['home_cell'] ?? null,
+                    'home_pci' => $data['home_pci'] ?? null,
+                    'traffic_profile' => $data['traffic_profile'] ?? null,
+                    'status' => $data['status'] ?? 'not_started',
+                    'start_date' => $data['start_date'] ?? null,
+                    'end_date' => $data['end_date'] ?? null,
+                    'solution_type' => $data['solution_type'] ?? null,
+                    'remarks' => $data['remarks'] ?? null,
+                    'created_at' => $data['created_at'],
+                    'updated_at' => $data['updated_at']
+                ]);
+            });
+
+            // Update the paginator with processed data
+            $wntdData->setCollection($processedData);
+
+            // Get statistics for the dashboard
+            $stats = [
+                'total' => WNTD::count(),
+                'active' => WNTD::where('status', 'active')->count(),
+                'pending' => WNTD::where('status', 'pending')->orWhere('status', 'not_started')->count(),
+                'completed' => WNTD::where('status', 'completed')->count(),
+                'unique_versions' => WNTD::distinct('version')->count(),
+                'recent' => WNTD::where('created_at', '>=', now()->subDays(7))->count()
+            ];
+
+            return Inertia::render('WNTD/Index', [
+                'sites' => $wntdData,
+                'get_data' => $request->all(),
+                'stats' => $stats,
+                'error' => null
             ]);
-            
-            // Return a basic error response
-            return Inertia::render('Error/Index', [
-                'message' => 'An unexpected error occurred: ' . $e->getMessage()
+
+        } catch (\Exception $e) {
+            Log::error('Error in WNTD index: ' . $e->getMessage());
+            return Inertia::render('WNTD/Index', [
+                'sites' => [],
+                'get_data' => $request->all(),
+                'error' => 'Failed to load WNTD data. Please try again.'
             ]);
         }
     }
@@ -831,21 +779,19 @@ class WNTDController extends Controller
     }
 
     /**
-     * Handle file import 
+     * Handle file import
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function import_from_csv(Request $request)
+    public function importFile(Request $request)
     {
         try {
-            // Validate the uploaded file
+            // Validate request
             $validator = Validator::make($request->all(), [
-                'file' => [
-                    'required',
-                    'file',
-                    'mimes:csv,txt',
-                    'max:10240', // 10MB max
-                ],
+                'file' => 'required|file|mimes:xlsx,xls,csv,txt',
             ]);
-            
+
             if ($validator->fails()) {
                 return response()->json([
                     'success' => false,
@@ -853,16 +799,16 @@ class WNTDController extends Controller
                     'errors' => $validator->errors()
                 ], 422);
             }
-            
+
             if (!$request->hasFile('file')) {
                 return response()->json([
                     'success' => false,
                     'message' => 'No file was uploaded'
                 ], 422);
             }
-            
+
             $file = $request->file('file');
-            
+
             // Check if the file is empty
             if ($file->getSize() == 0) {
                 return response()->json([
@@ -870,44 +816,44 @@ class WNTDController extends Controller
                     'message' => 'The uploaded file is empty'
                 ], 422);
             }
-            
+
             // Store the file
-            $path = $file->store('csv');
-            
+            $path = $file->store('temp');
+
             try {
                 // Read CSV headers
                 $reader = Reader::createFromPath(storage_path('app/' . $path), 'r');
                 $reader->setHeaderOffset(0);
-                
+
                 $header = $reader->getHeader();
-                
+
                 // Make sure we have the required columns
                 $requiredColumns = ['site_name', 'wntd'];
-                $missingColumns = array_diff($requiredColumns, $header);
-                
+                $missingColumns = array_diff($requiredColumns, array_map('strtolower', $header));
+
                 if (count($missingColumns) > 0) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'The CSV file is missing required columns: ' . implode(', ', $missingColumns)
+                        'message' => 'The file is missing required columns: ' . implode(', ', $missingColumns)
                     ], 422);
                 }
-                
+
                 // Get sample rows for preview
                 $records = $reader->getRecords();
                 $count = 0;
                 $sample = [];
-                
+
                 foreach ($records as $record) {
                     if ($count < 5) {
                         $sample[] = $record;
                     }
                     $count++;
-                    
+
                     if ($count >= 5) {
                         break;
                     }
                 }
-                
+
                 // Return success with file path, header and sample for mapping
                 return response()->json([
                     'success' => true,
@@ -916,28 +862,30 @@ class WNTDController extends Controller
                     'sample' => $sample,
                     'total_rows' => $count
                 ]);
-                
+
             } catch (\Exception $e) {
                 // Delete the file if parsing fails
-                \Storage::delete($path);
-                
+                Storage::delete($path);
+
                 Log::error('CSV parsing error: ' . $e->getMessage(), [
                     'file' => $e->getFile(),
-                    'line' => $e->getLine()
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString()
                 ]);
-                
+
                 return response()->json([
                     'success' => false,
-                    'message' => 'Failed to parse CSV file: ' . $e->getMessage()
+                    'message' => 'Failed to parse file: ' . $e->getMessage()
                 ], 422);
             }
-            
+
         } catch (\Exception $e) {
             Log::error('File upload error: ' . $e->getMessage(), [
                 'file' => $e->getFile(),
-                'line' => $e->getLine()
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'File upload failed: ' . $e->getMessage()
@@ -1149,6 +1097,14 @@ class WNTDController extends Controller
                 ], 400);
             }
             
+            // Check if a custom template exists
+            $customTemplatePath = public_path("templates/wntd_template.csv");
+            if (file_exists($customTemplatePath) && $format === 'csv') {
+                return response()->download($customTemplatePath, "wntd_template.csv", [
+                    'Content-Type' => 'text/csv'
+                ]);
+            }
+            
             // Create a spreadsheet
             $spreadsheet = new Spreadsheet();
             $sheet = $spreadsheet->getActiveSheet();
@@ -1224,24 +1180,22 @@ class WNTDController extends Controller
     private function getTemplateHeaders()
     {
         return [
-            'Site Name', 'Location ID', 'WNTD', 'IMSI', 
-            'Latitude', 'Longitude', 'Status', 'Last Update'
+            'Location ID', 'WNTD', 'IMSI', 
+            'Latitude', 'Longitude', 'Site Name', 'Status', 'Last Update'
         ];
     }
 
     /**
-     * Import WNTD data from file
-     * 
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * Import data from the uploaded file
      */
-    public function importFile(Request $request)
+    public function import(Request $request)
     {
         try {
             // Validate request
             $validator = Validator::make($request->all(), [
                 'file' => 'required|file|mimes:xlsx,xls,csv,txt',
-                'columnMappings' => 'required|array'
+                'columnMappings' => 'required|string',
+                'updateExisting' => 'nullable|boolean'
             ]);
 
             if ($validator->fails()) {
@@ -1252,14 +1206,40 @@ class WNTDController extends Controller
                 ], 422);
             }
 
+            // Decode and validate column mappings
+            try {
+                $columnMappings = json_decode($request->input('columnMappings'), true);
+                if (!is_array($columnMappings)) {
+                    throw new \Exception("Column mappings must be an array");
+                }
+            } catch (\Exception $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid column mappings format',
+                    'errors' => ['columnMappings' => [$e->getMessage()]]
+                ], 422);
+            }
+
             $file = $request->file('file');
-            $columnMappings = $request->input('columnMappings');
+            $updateExisting = $request->boolean('updateExisting', true); // Default to true
             
             // Store the file
             $filePath = $file->store('temp');
             
             // Use the import service
             $importService = app(WNTDImportService::class);
+            
+            // Set whether to update existing records
+            $importService->setUpdateExisting($updateExisting);
+
+            // Set import options if provided
+            if ($request->has('importOptions')) {
+                $importOptions = json_decode($request->input('importOptions'), true);
+                if (is_array($importOptions)) {
+                    $importService->setImportOptions($importOptions);
+                }
+            }
+            
             $result = $importService->importFromFile($filePath, $columnMappings);
             
             return response()->json($result);

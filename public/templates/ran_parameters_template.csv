@@ -1,0 +1,3 @@
+parameter_id,parameter_name,parameter_value,description,domain,data_type,value_range,mo_reference,default_value,category,technology,vendor,applicability,status,type,value,unit
+P001,maxHARQTx,4,Maximum number of HARQ retransmissions,1-8,Integer,HARQ/Config,4,HARQ,LTE,Ericsson,Cell level,Active,parameter,4,
+PARAM001,Sample Parameter,123,Sample description,Radio,integer,0-1000,MO_REF1,0,RF,4G,Ericsson,NodeB,active,parameter,123,dBm 

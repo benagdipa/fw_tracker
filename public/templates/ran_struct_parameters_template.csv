@@ -1,0 +1,2 @@
+model,mo_class_name,parameter_name,seq,parameter_description,data_type,range,def,mul,unit,rest,read,restr,manc,pers,syst,change,dist,dependencies,dep,obs,prec
+NodeB,RncFunction,maxCellSupport,1,Maximum number of cells supported,Integer,1-1000,500,No,cells,None,Yes,None,M,P,S,No,D,None,No,Example comment,0 

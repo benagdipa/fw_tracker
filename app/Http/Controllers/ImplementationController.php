@@ -22,6 +22,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Csv;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Illuminate\Support\Facades\DB;
 use App\Services\ImplementationImportService;
+use Illuminate\Support\Facades\Storage;
 
 
 class ImplementationController extends Controller
@@ -38,39 +39,87 @@ class ImplementationController extends Controller
         $implementation->setTable('implementations');
         $tableName = $implementation->getTable();
         
-        if ($search_query) {
-            $columns = \Schema::getColumnListing($tableName);
-            $Implementations = Implementation::where(function ($query) use ($search_query, $columns) {
-                foreach ($columns as $column) {
-                    $query->orWhere($column, 'LIKE', '%' . $search_query . '%');
-                }
-            })->orderBy($order_by, $order ? $order : 'asc')->paginate($per_page);
-
-        } elseif ($request->input('filter_by') && $request->input('value')) {
-            $Implementations = Implementation::whereHas('tracking', function ($query) use ($request) {
-                $query->where('key', $request->input('filter_by'));
-                $query->where('value', $request->input('value'));
-            })->orderBy($order_by, $order ? $order : 'asc')->paginate($per_page);
-        } else {
-            $Implementations = Implementation::orderBy($order_by, $order ? $order : 'asc')->paginate($per_page);
-        }
-
-        $desiredKeys = ['category', 'status', 'Date'];
-        foreach ($Implementations as $Implementation) {
-            $tracking_data = ImplementationTracking::where('implementation_area_id', $Implementation->id)
-                ->whereIn('key', $desiredKeys)
-                ->get()
-                ->keyBy('key')
-                ->toArray();
-            foreach ($tracking_data as $key => $value) {
-                $Implementation->{$key} = $value['value'];
+        try {
+            // Build the base query
+            $query = Implementation::query();
+            
+            // Process request parameters
+            $includeDeleted = $request->input('include_deleted', false);
+            
+            // Include soft-deleted records if requested, otherwise use the default behavior
+            if ($includeDeleted) {
+                $query->withTrashed();
             }
-        }
 
-        return Inertia::render('Implementation/Index', [
-            'implementations' => $Implementations,
-            'get_data' => $request->all()
-        ]);
+            // Apply search if provided
+            if ($search_query) {
+                $columns = \Schema::getColumnListing($tableName);
+                $query->where(function ($subQuery) use ($search_query, $columns) {
+                    foreach ($columns as $column) {
+                        $subQuery->orWhere($column, 'LIKE', '%' . $search_query . '%');
+                    }
+                });
+            }
+
+            // Apply filters if provided
+            if ($request->input('filter_by') && $request->input('value')) {
+                $query->whereHas('tracking', function ($subQuery) use ($request) {
+                    $subQuery->where('key', $request->input('filter_by'))
+                            ->where('value', $request->input('value'));
+                });
+            }
+
+            // Apply ordering
+            $query->orderBy($order_by, $order ?: 'asc');
+
+            // Get paginated results
+            $implementations = $query->paginate($per_page);
+
+            // Process each implementation to include tracking data
+            $processedData = $implementations->map(function ($implementation) {
+                $data = $implementation->toArray();
+
+                // Get tracking data
+                $trackingData = ImplementationTracking::where('implementation_area_id', $implementation->id)
+                    ->whereIn('key', ['category', 'status', 'Date', 'start_date', 'end_date', 'progress', 'notes'])
+                    ->get()
+                    ->keyBy('key')
+                    ->map(function ($item) {
+                        return $item->value;
+                    })
+                    ->toArray();
+
+                // Merge tracking data with consistent field names
+                return array_merge($data, [
+                    'id' => $implementation->id,
+                    'site_name' => $data['siteName'] ?? $data['site_name'] ?? null,
+                    'category' => $trackingData['category'] ?? null,
+                    'status' => $trackingData['status'] ?? 'not_started',
+                    'start_date' => $trackingData['start_date'] ?? $trackingData['Date'] ?? null,
+                    'end_date' => $trackingData['end_date'] ?? null,
+                    'progress' => $trackingData['progress'] ?? 0,
+                    'notes' => $trackingData['notes'] ?? null,
+                    'created_at' => $data['created_at'],
+                    'updated_at' => $data['updated_at']
+                ]);
+            });
+
+            // Update the paginator with processed data
+            $implementations->setCollection($processedData);
+
+            return Inertia::render('Implementation/Index', [
+                'implementations' => $implementations,
+                'get_data' => $request->all()
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error in implementation index: ' . $e->getMessage());
+            return Inertia::render('Implementation/Index', [
+                'implementations' => [],
+                'get_data' => $request->all(),
+                'error' => 'Failed to load implementations. Please try again.'
+            ]);
+        }
     }
 
     /**
@@ -545,7 +594,32 @@ class ImplementationController extends Controller
     }
 
     /**
-     * Generate and download a template file for implementation imports
+     * Get template headers for implementation data
+     * 
+     * @return array
+     */
+    private function getTemplateHeaders()
+    {
+        return [
+            'site_name',
+            'category',
+            'eNB_gNB',
+            'implementor',
+            'status',
+            'start_date',
+            'end_date',
+            'notes',
+            'CRQ',
+            'enm_scripts_path',
+            'sp_scripts_path',
+            'address',
+            'lat',
+            'lng'
+        ];
+    }
+
+    /**
+     * Download template file for implementation data import
      * 
      * @param string $targetTable Table name to generate template for
      * @param string $format Format of the template file (csv or excel)
@@ -569,6 +643,12 @@ class ImplementationController extends Controller
                 ], 400);
             }
             
+            // Check if custom template exists
+            $customTemplatePath = public_path("templates/implementation_template.{$format}");
+            if (file_exists($customTemplatePath) && $format === 'csv') {
+                return response()->download($customTemplatePath, "implementation_template.{$format}");
+            }
+            
             // Create a spreadsheet
             $spreadsheet = new Spreadsheet();
             $sheet = $spreadsheet->getActiveSheet();
@@ -582,12 +662,22 @@ class ImplementationController extends Controller
                 $sheet->setCellValueByColumnAndRow($columnIndex++, 1, $header);
             }
             
-            // Add some sample data in the second row
+            // Add sample data row
             $sampleData = [
-                'Project X', 'IMP001', 'Site A', 'New Installation', 
-                'Phase 1', 'In Progress', 'High', 'Team Alpha',
-                '2023-01-01', '2023-03-31', '80', 
-                'Network optimization pending', 'Power issue resolved'
+                'Site A',                      // site_name
+                'Parameters',                  // category
+                'ENB123',                      // eNB_gNB
+                'Team Alpha',                  // implementor
+                'in_progress',                 // status
+                '2023-01-01',                  // start_date
+                '2023-03-31',                  // end_date
+                'Network optimization in progress', // notes
+                'CRQ12345',                    // CRQ
+                '/path/to/enm/scripts',        // enm_scripts_path
+                '/path/to/sp/scripts',         // sp_scripts_path
+                '123 Main St, City',           // address
+                '37.7749',                     // lat
+                '-122.4194'                    // lng
             ];
             
             // Add sample data row
@@ -677,34 +767,10 @@ class ImplementationController extends Controller
             ], 500);
         }
     }
-    
-    /**
-     * Get template headers for implementation
-     * 
-     * @return array
-     */
-    private function getTemplateHeaders()
-    {
-        return [
-            'Project Name', 
-            'Implementation ID', 
-            'Site',
-            'Type',
-            'Phase',
-            'Status',
-            'Priority',
-            'Assigned Team',
-            'Start Date',
-            'End Date',
-            'Completion Percentage',
-            'Notes',
-            'Issues'
-        ];
-    }
 
     /**
-     * Import Implementation data from file
-     * 
+     * Handle file import
+     *
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
@@ -714,7 +780,6 @@ class ImplementationController extends Controller
             // Validate request
             $validator = Validator::make($request->all(), [
                 'file' => 'required|file|mimes:xlsx,xls,csv,txt',
-                'columnMappings' => 'required|array'
             ]);
 
             if ($validator->fails()) {
@@ -725,23 +790,95 @@ class ImplementationController extends Controller
                 ], 422);
             }
 
+            if (!$request->hasFile('file')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No file was uploaded'
+                ], 422);
+            }
+
             $file = $request->file('file');
-            $columnMappings = $request->input('columnMappings');
-            
+
+            // Check if the file is empty
+            if ($file->getSize() == 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The uploaded file is empty'
+                ], 422);
+            }
+
             // Store the file
-            $filePath = $file->store('temp');
-            
-            // Use the import service
-            $importService = app(ImplementationImportService::class);
-            $result = $importService->importFromFile($filePath, $columnMappings);
-            
-            return response()->json($result);
-            
+            $path = $file->store('temp');
+
+            try {
+                // Read CSV headers
+                $reader = Reader::createFromPath(storage_path('app/' . $path), 'r');
+                $reader->setHeaderOffset(0);
+
+                $header = $reader->getHeader();
+
+                // Make sure we have the required columns
+                $requiredColumns = ['site_name', 'category', 'status'];
+                $missingColumns = array_diff($requiredColumns, array_map('strtolower', $header));
+
+                if (count($missingColumns) > 0) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'The file is missing required columns: ' . implode(', ', $missingColumns)
+                    ], 422);
+                }
+
+                // Get sample rows for preview
+                $records = $reader->getRecords();
+                $count = 0;
+                $sample = [];
+
+                foreach ($records as $record) {
+                    if ($count < 5) {
+                        $sample[] = $record;
+                    }
+                    $count++;
+
+                    if ($count >= 5) {
+                        break;
+                    }
+                }
+
+                // Return success with file path, header and sample for mapping
+                return response()->json([
+                    'success' => true,
+                    'path' => $path,
+                    'header' => $header,
+                    'sample' => $sample,
+                    'total_rows' => $count
+                ]);
+
+            } catch (\Exception $e) {
+                // Delete the file if parsing fails
+                Storage::delete($path);
+
+                Log::error('CSV parsing error: ' . $e->getMessage(), [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to parse file: ' . $e->getMessage()
+                ], 422);
+            }
+
         } catch (\Exception $e) {
-            Log::error('Implementation import error: ' . $e->getMessage());
+            Log::error('File upload error: ' . $e->getMessage(), [
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => 'Error importing data: ' . $e->getMessage()
+                'message' => 'File upload failed: ' . $e->getMessage()
             ], 500);
         }
     }

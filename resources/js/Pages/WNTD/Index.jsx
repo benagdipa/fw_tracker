@@ -313,12 +313,18 @@ const Index = ({
   const dispatch = useDispatch();
   // CSRF token reference removed to avoid issues
   
-  const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState((get_data && get_data.search) || "");
-  const [rows, setRows] = useState([]);
-  const [changedData, setChangedData] = useState({});
-  const [hoveredRowId, setHoveredRowId] = useState(null);
-  const fileInputRef = useRef(null);
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState([]);
+  const [pageSize, setPageSize] = useState(25);
+  const [searchText, setSearchText] = useState('');
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    pending: 0,
+    completed: 0,
+    unique_versions: 0,
+    recent: 0
+  });
   
   const [importStatus, setImportStatus] = useState('idle');
   const [importError, setImportError] = useState(null);
@@ -344,9 +350,18 @@ const Index = ({
   // Add state for import modal
   const [importModalOpen, setImportModalOpen] = useState(false);
   
+  // Add changedData state
+  const [changedData, setChangedData] = useState({});
+  const [rows, setRows] = useState(sites?.data || []);
+  const [changedItems, setChangedItems] = useState([]);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+  
   useEffect(() => {
     if (sites && sites.data) {
-      setRows(sites.data);
+      setData(sites.data);
     }
   }, [sites]);
   
@@ -360,13 +375,51 @@ const Index = ({
   useEffect(() => {
     if (changedData && Object.keys(changedData).length > 0) {
       // Apply pending changes to rows for consistent view
-      setRows(prevRows => 
+      setData(prevRows => 
         prevRows.map(row => 
           changedData[row.id] ? { ...row, ...changedData[row.id] } : row
         )
       );
     }
   }, [changedData]);
+  
+  // Initialize data
+  useEffect(() => {
+    try {
+      if (sites?.data) {
+        const processedData = sites.data.map(site => {
+          // Ensure all required fields are present with proper defaults
+          return {
+            id: site.id,
+            site_name: site.site_name || site.siteName || '',
+            loc_id: site.loc_id || '',
+            wntd: site.wntd || '',
+            imsi: site.imsi || '',
+            version: site.version || '',
+            avc: site.avc || '',
+            bw_profile: site.bw_profile || '',
+            lon: site.lon !== null ? parseFloat(site.lon) : null,
+            lat: site.lat !== null ? parseFloat(site.lat) : null,
+            home_cell: site.home_cell || '',
+            home_pci: site.home_pci || '',
+            traffic_profile: site.traffic_profile || '',
+            status: site.status || 'not_started',
+            start_date: site.start_date || null,
+            end_date: site.end_date || null,
+            solution_type: site.solution_type || '',
+            remarks: site.remarks || '',
+            created_at: site.created_at,
+            updated_at: site.updated_at
+          };
+        });
+        
+        setRows(processedData);
+      }
+    } catch (err) {
+      console.error('Error processing WNTD data:', err);
+      toast.error('Error loading WNTD data');
+    }
+  }, [sites]);
   
   // Define the base column definitions
   const columnDefinitions = useMemo(() => [
@@ -383,17 +436,24 @@ const Index = ({
         }
         
         return (
-          <Link 
-            href={route('wntd.field.name.show', { id: params.row.id })}
-            className="text-blue-600 hover:text-blue-800 hover:underline"
-            onClick={(e) => {
-              e.stopPropagation(); // Prevent row click event
-              e.preventDefault();
-              router.visit(route('wntd.field.name.show', { id: params.row.id }));
-            }}
-          >
-            {params.value}
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link 
+              className="text-blue-600 hover:text-blue-800" 
+              href={safeRoute('wntd.field.name.show', { id: params.row.id })}
+            >
+              View
+            </Link>
+            <button
+              className="text-blue-600 hover:text-blue-800"
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent row click event
+                e.preventDefault();
+                router.visit(safeRoute('wntd.field.name.show', { id: params.row.id }));
+              }}
+            >
+              Details
+            </button>
+          </div>
         );
       }
     },
@@ -672,102 +732,59 @@ const Index = ({
     }
   }, [sites?.data]);
   
-  // Enhanced CRUD operation handlers
+  // Handle cell edit
   const handleCellEdit = useCallback((params) => {
-    try {
-      // Get field and new value
-      const { id, field, value } = params;
-      
-      // Validate the field
-      const validation = validateField(field, value);
-      if (!validation.valid) {
-        toast.error(validation.message);
-        return false;
-      }
-      
-      // Sanitize and enforce type
-      const sanitizedValue = sanitizeValue(value);
-      const typedValue = enforceType(field, sanitizedValue);
-      
-      // Store original version for undo functionality
-      if (!editVersions[id]?.hasOwnProperty(field)) {
-        setEditVersions(prev => ({
-          ...prev,
-          [id]: {
-            ...(prev[id] || {}),
-            [field]: rows.find(row => row.id === id)?.[field]
-          }
-        }));
-      }
-      
-      // Update changedData
-      setChangedData(prev => ({
-        ...prev,
-        [id]: {
-          ...(prev[id] || {}),
-          [field]: typedValue,
-          id
-        }
-      }));
-      
-      return true;
-    } catch (error) {
-      console.error("Cell edit error:", error);
-      toast.error(`Error updating field: ${error.message}`);
-      return false;
+    const { id, field, value } = params;
+    
+    // Add to changed items if not already included
+    if (!changedItems.includes(id)) {
+      setChangedItems(prev => [...prev, id]);
     }
-  }, [rows, editVersions, setChangedData]);
+    
+    // Update changedData
+    setChangedData(prev => ({
+      ...prev,
+      [id]: {
+        ...(prev[id] || {}),
+        [field]: value
+      }
+    }));
+    
+    // Update local state
+    setData(prevRows => 
+      prevRows.map(row => 
+        row.id === id ? { ...row, [field]: value } : row
+      )
+    );
+    
+    return true;
+  }, [changedItems]);
 
-  const handleRowUpdate = useCallback(async (id) => {
+  // Handle row save
+  const handleRowSave = async (id) => {
+    if (!changedData[id]) {
+      toast.error("No changes to save");
+      return;
+    }
+
+    setLoading(true);
+    const loadingToast = toast.loading("Saving changes...");
+    
     try {
-      // Check if row has changes
-      if (!changedData[id]) {
-        toast.info("No changes to save");
-        return;
-      }
-      
-      setLoading(true);
-      
-      // Get the row data with changes
-      const originalRow = rows.find(row => row.id === id);
-      const updatedRow = { ...originalRow, ...changedData[id] };
-      
-      // Validate required fields
-      const validationSchema = {
-        site_name: { required: true },
-        wntd: { required: true }
-      };
-      const missingFields = validateFields(updatedRow, validationSchema);
-      
-      if (missingFields.length > 0) {
-        toast.error(`Please fill in required fields: ${missingFields.join(', ')}`);
-        setLoading(false);
-        return;
-      }
-      
-      // Prepare request data
-      // CSRF token handling removed to avoid issues
-      
-      // Send update request with all updated data
-      const response = await axios.post(safeRoute("wntd.field.name.save.item"), {
-        ...updatedRow,
-        _method: 'PUT'
-        // _token: token removed to avoid CSRF issues
-      }, {
-        headers: {
-          "Content-Type": "application/json",
-          // "X-CSRF-TOKEN": token, removed to avoid CSRF issues
-          "Accept": "application/json",
-        }
+      const response = await axios.post(route("wntd.field.name.save.item"), {
+        id,
+        ...changedData[id]
       });
       
+      toast.dismiss(loadingToast);
+      
       if (response.data && response.data.success) {
-        // Update local state with returned data if available
-        const updatedData = response.data.data || updatedRow;
+        toast.success("Record updated successfully");
         
-        setRows(prevRows => 
-          prevRows.map(row => row.id === id ? { ...row, ...updatedData } : row)
-        );
+        // Update the rows data with the saved changes
+        setData(prevRows => prevRows.map(row => 
+          row.id === id ? { ...row, ...changedData[id], updated_at: new Date().toISOString() } : row
+        ));
         
         // Clear changed data for this row
         setChangedData(prev => {
@@ -776,55 +793,42 @@ const Index = ({
           return newData;
         });
         
-        // Clear edit versions for this row
-        setEditVersions(prev => {
-          const newVersions = { ...prev };
-          delete newVersions[id];
-          return newVersions;
-        });
-        
-        toast.success(response.data.message || "Record updated successfully");
+        // Remove from changed items
+        setChangedItems(prev => prev.filter(item => item !== id));
       } else {
-        throw new Error(response.data?.message || "Failed to update record");
+        toast.error(response.data?.message || "Failed to update record");
       }
     } catch (error) {
-      console.error("Row update error:", error);
-      const errorMessage = error.response?.data?.message || error.message || "Error saving changes";
-      toast.error(errorMessage);
+      toast.dismiss(loadingToast);
+      console.error("Save error:", error);
+      toast.error("Failed to update record: " + (error.response?.data?.message || "Unknown error"));
     } finally {
       setLoading(false);
     }
-  }, [rows, changedData, validateFields, safeRoute]);
+  };
 
-  const handleRowDelete = useCallback(async (id) => {
+  // Add handleRowDelete function after handleRowSave
+  const handleRowDelete = async (id) => {
+    // Confirmation dialog
+    if (!window.confirm("Are you sure you want to delete this record? This action cannot be undone.")) {
+      return;
+    }
+    
+    setLoading(true);
+    const loadingToast = toast.loading("Deleting record...");
+    
     try {
-      // Confirm deletion
-      if (!window.confirm("Are you sure you want to delete this record?")) {
-        return;
-      }
+      const response = await axios.delete(route("wntd.field.name.delete", id));
       
-      setLoading(true);
-      
-      // Prepare request data
-      // CSRF token handling removed to avoid issues
-      
-      // Send deletion request
-      const response = await axios.delete(safeRoute(`wntd.field.name.delete`, { id }), {
-        headers: {
-          "Content-Type": "application/json",
-          // "X-CSRF-TOKEN": token, removed to avoid CSRF issues
-          "Accept": "application/json",
-        }
-      });
+      toast.dismiss(loadingToast);
       
       if (response.data && response.data.success) {
-        // Update local state by removing the deleted row
-        setRows(prevRows => prevRows.filter(row => row.id !== id));
+        toast.success("Record deleted successfully");
         
-        // Add to deleted rows tracking
-        setDeletedRows(prev => [...prev, { id }]);
+        // Remove the deleted row from the state
+        setData(prevRows => prevRows.filter(row => row.id !== id));
         
-        // Clear changed data for this row if any
+        // Clear any changed data for this row
         if (changedData[id]) {
           setChangedData(prev => {
             const newData = { ...prev };
@@ -833,36 +837,29 @@ const Index = ({
           });
         }
         
-        toast.success(response.data.message || "Record deleted successfully");
+        // Remove from changed items if present
+        setChangedItems(prev => prev.filter(item => item !== id));
       } else {
-        throw new Error(response.data?.message || "Failed to delete record");
+        toast.error(response.data?.message || "Failed to delete record");
       }
     } catch (error) {
-      console.error("Row deletion error:", error);
-      const errorMessage = error.response?.data?.message || error.message || "Error deleting record";
-      toast.error(errorMessage);
+      toast.dismiss(loadingToast);
+      console.error("Delete error:", error);
+      
+      if (error.response?.status === 403) {
+        toast.error("You do not have permission to delete this record");
+      } else if (error.response?.status === 404) {
+        toast.error("Record not found or already deleted");
+        // Remove from UI if it doesn't exist on server
+        setData(prevRows => prevRows.filter(row => row.id !== id));
+      } else {
+        toast.error("Failed to delete record: " + (error.response?.data?.message || "Unknown error"));
+      }
     } finally {
       setLoading(false);
     }
-  }, [changedData, safeRoute]);
+  };
 
-  // Function to cancel edits
-  const handleCancelEdit = useCallback((id) => {
-    setChangedData(prev => {
-      const newData = { ...prev };
-      delete newData[id];
-      return newData;
-    });
-    
-    setEditVersions(prev => {
-      const newVersions = { ...prev };
-      delete newVersions[id];
-      return newVersions;
-    });
-    
-    toast.info("Changes cancelled");
-  }, []);
-  
   // Then update the memoizedColumns to just use baseColumns directly
   const memoizedColumns = useMemo(() => {
     try {
@@ -880,7 +877,7 @@ const Index = ({
     }
   }, [columnDefinitions]);
   
-  // Add action column to handle row edits
+  // Update the actionsColumn definition
   const actionsColumn = useMemo(() => ({
     field: 'actions',
     headerName: 'Actions',
@@ -889,7 +886,7 @@ const Index = ({
     filterable: false,
     disableColumnMenu: true,
     renderCell: (params) => {
-      const isRowEdited = changedData[params.id] !== undefined;
+      const isRowEdited = changedItems.includes(params.id);
       
       return (
         <div className="flex gap-2">
@@ -898,13 +895,28 @@ const Index = ({
               <GridActionsCellItem
                 icon={<SaveIcon className="text-green-500" />}
                 label="Save"
-                onClick={() => handleRowUpdate(params.id)}
+                onClick={() => handleRowSave(params.id)}
                 showInMenu={false}
               />
               <GridActionsCellItem
                 icon={<UndoIcon className="text-amber-500" />}
                 label="Cancel"
-                onClick={() => handleCancelEdit(params.id)}
+                onClick={() => {
+                  // Remove from changed items
+                  setChangedItems(prev => prev.filter(item => item !== params.id));
+                  // Clear changed data for this row
+                  setChangedData(prev => {
+                    const newData = { ...prev };
+                    delete newData[params.id];
+                    return newData;
+                  });
+                  // Revert row data to original
+                  setData(prevRows => 
+                    prevRows.map(row => 
+                      row.id === params.id ? { ...row, ...sites.data.find(s => s.id === params.id) } : row
+                    )
+                  );
+                }}
                 showInMenu={false}
               />
             </>
@@ -925,13 +937,13 @@ const Index = ({
         </div>
       );
     }
-  }), [changedData, handleRowUpdate, handleRowDelete, handleCancelEdit]);
+  }), [changedItems, handleRowSave, handleRowDelete, sites?.data]);
   
   // Combine all columns including actions
   const allColumns = useMemo(() => {
     // Add the actions column to the processed columns
-    return [...memoizedColumns, actionsColumn];
-  }, [memoizedColumns, actionsColumn]);
+    return [...memoizedColumns];
+  }, [memoizedColumns]);
 
   // Handler for row selection changes
   const handleSelectionChange = useCallback((newSelection) => {
@@ -972,17 +984,19 @@ const Index = ({
   // Update refreshData function
   const refreshData = () => {
     setLoading(true);
-    router.get(route('wntd.field.name.index', get_data), {
-      onSuccess: () => {
-        setLoading(false);
-        toast.success("Data refreshed successfully");
-      },
-      onError: () => {
-        setLoading(false);
-        toast.error("Failed to refresh data");
-      },
-      preserveState: true
-    });
+    try {
+      router.get(safeRoute('wntd.field.name.index', get_data), {
+        only: ['sites', 'get_data'],
+        preserveState: true,
+        preserveScroll: true,
+        onFinish: () => {
+          setLoading(false);
+        }
+      });
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+      setLoading(false);
+    }
   };
   
   // Update handleSortChange function
@@ -1008,7 +1022,7 @@ const Index = ({
     }
     
     // Navigate to sorted URL
-    router.get(route('wntd.field.name.index', Object.fromEntries(params)), {
+    router.get(safeRoute('wntd.field.name.index', Object.fromEntries(params)), {
       onSuccess: () => {
         setLoading(false);
       },
@@ -1026,8 +1040,8 @@ const Index = ({
     let params = new URLSearchParams();
     
     // Add search query
-    if (searchQuery) {
-      params.append('search', searchQuery);
+    if (searchText) {
+      params.append('search', searchText);
     }
     
     // Add status filter
@@ -1056,15 +1070,13 @@ const Index = ({
     }
     
     // Navigate to filtered URL
-    router.get(route('wntd.field.name.index', Object.fromEntries(params)), {
-      onSuccess: () => {
+    router.get(safeRoute('wntd.field.name.index', Object.fromEntries(params)), {
+      only: ['sites', 'get_data'],
+      preserveState: true,
+      preserveScroll: true,
+      onFinish: () => {
         setLoading(false);
-      },
-      onError: () => {
-        setLoading(false);
-        toast.error("Failed to apply filters");
-      },
-      preserveState: true
+      }
     });
   };
 
@@ -1072,12 +1084,8 @@ const Index = ({
   const handleExport = async (format) => {
     try {
       setLoading(true);
-      const response = await axios.get(route('wntd.field.name.export', { format }), {
+      const response = await axios.get(safeRoute('wntd.field.name.export', { format }), {
         responseType: 'blob',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
       });
 
       // Create a download link
@@ -1181,6 +1189,125 @@ const Index = ({
     window.location.reload();
   };
 
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get(route('wntd.field.name.index'), {
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        params: {
+          search: searchText,
+          per_page: pageSize,
+          status: statusFilter,
+          start_date: dateFilter.startDate?.toISOString().split('T')[0],
+          end_date: dateFilter.endDate?.toISOString().split('T')[0],
+          include_deleted: false
+        }
+      });
+
+      // Check if response is HTML (indicating session expired or auth issue)
+      if (typeof response.data === 'string' && response.data.includes('<!DOCTYPE html>')) {
+        // Instead of refreshing immediately, show an error message
+        toast.error('Session expired. Please refresh the page to continue.');
+        setData([]);
+        return;
+      }
+
+      if (response.data.sites && response.data.sites.data) {
+        // Process the data to ensure all required fields are present
+        const processedData = response.data.sites.data.map(item => ({
+          id: item.id,
+          site_name: item.site_name || '',
+          loc_id: item.loc_id || '',
+          wntd: item.wntd || '',
+          imsi: item.imsi || '',
+          version: item.version || '',
+          avc: item.avc || '',
+          bw_profile: item.bw_profile || '',
+          lon: item.lon !== null ? parseFloat(item.lon) : null,
+          lat: item.lat !== null ? parseFloat(item.lat) : null,
+          home_cell: item.home_cell || '',
+          home_pci: item.home_pci || '',
+          traffic_profile: item.traffic_profile || '',
+          status: item.status || 'not_started',
+          start_date: item.start_date || null,
+          end_date: item.end_date || null,
+          solution_type: item.solution_type || '',
+          remarks: item.remarks || '',
+          created_at: item.created_at,
+          updated_at: item.updated_at
+        }));
+
+        setData(processedData);
+        setStats(response.data.stats || {});
+      } else if (response.data.error) {
+        toast.error(response.data.error);
+        setData([]);
+      } else {
+        console.error('Invalid data format received:', response.data);
+        toast.error('Error loading data: Invalid format');
+        setData([]);
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      if (error.response?.status === 401 || error.response?.status === 419) {
+        // Instead of auto-refreshing, show an error message with a manual refresh button
+        toast.error(
+          (t) => (
+            <div className="flex flex-col gap-2">
+              <span>Session expired. Please refresh the page.</span>
+              <Button
+                size="sm"
+                color="blue"
+                onClick={() => {
+                  toast.dismiss(t.id);
+                  window.location.reload();
+                }}
+              >
+                Refresh Page
+              </Button>
+            </div>
+          ),
+          { duration: 5000 }
+        );
+        setData([]);
+      } else {
+        toast.error('Error loading data: ' + (error.response?.data?.message || error.message));
+        setData([]);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearchChange = (event) => {
+    setSearchText(event.target.value);
+  };
+
+  const handlePageSizeChange = (newPageSize) => {
+    setPageSize(newPageSize);
+  };
+
+  const filteredData = useMemo(() => {
+    if (!searchText) return data;
+    
+    return data.filter(row => 
+      Object.values(row).some(value => 
+        value && value.toString().toLowerCase().includes(searchText.toLowerCase())
+      )
+    );
+  }, [data, searchText]);
+
+  // Update the useEffect that calls fetchData to include dependencies
+  useEffect(() => {
+    // Only fetch if we have valid pageSize
+    if (pageSize > 0) {
+      fetchData();
+    }
+  }, [pageSize, searchText, statusFilter, dateFilter.startDate, dateFilter.endDate]);
+
   return (
     <Authenticated
       auth={auth}
@@ -1244,15 +1371,15 @@ const Index = ({
                   <input
                     type="search"
                     placeholder="Search by site name, WNTD ID, IMSI number..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    value={searchText}
+                    onChange={handleSearchChange}
                     onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
                     className="block w-full pl-10 pr-12 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
                   />
-                  {searchQuery && (
+                  {searchText && (
                     <button
                       onClick={() => {
-                        setSearchQuery("");
+                        setSearchText("");
                         applyFilters();
                       }}
                       className="absolute right-12 inset-y-0 flex items-center pr-2"
@@ -1268,7 +1395,7 @@ const Index = ({
                     Search
                   </Button>
                 </div>
-                {searchQuery && (
+                {searchText && (
                   <div className="absolute mt-1 text-xs text-gray-500 dark:text-gray-400">
                     Press Enter to search or click the Search button
                   </div>
@@ -1277,6 +1404,18 @@ const Index = ({
 
               {/* Filters Section */}
               <div className="flex flex-wrap gap-2 items-center">
+                {/* Import Button */}
+                <Button
+                  size="sm"
+                  variant="outlined"
+                  color="blue"
+                  className="flex items-center gap-2"
+                  onClick={() => setImportModalOpen(true)}
+                >
+                  <FileUploadIcon className="h-4 w-4" />
+                  Import
+                </Button>
+                
                 {/* Export Button */}
                 <Button
                   size="sm"
@@ -1389,7 +1528,7 @@ const Index = ({
                 </Popover>
 
                 {/* Clear Filters Button - Only show when filters are active */}
-                {(statusFilter || dateFilter.startDate || dateFilter.endDate || searchQuery) && (
+                {(statusFilter || dateFilter.startDate || dateFilter.endDate || searchText) && (
                   <Button 
                     size="sm" 
                     color="red" 
@@ -1398,7 +1537,7 @@ const Index = ({
                     onClick={() => {
                       setStatusFilter("");
                       setDateFilter({ startDate: null, endDate: null });
-                      setSearchQuery("");
+                      setSearchText("");
                       applyFilters();
                     }}
                   >
@@ -1409,13 +1548,13 @@ const Index = ({
             </div>
 
             {/* Active Filters Display */}
-            {(statusFilter || dateFilter.startDate || searchQuery) && (
+            {(statusFilter || dateFilter.startDate || searchText) && (
               <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-                {searchQuery && (
+                {searchText && (
                   <Chip
-                    value={`Search: ${searchQuery}`}
+                    value={`Search: ${searchText}`}
                     onClose={() => {
-                      setSearchQuery("");
+                      setSearchText("");
                       applyFilters();
                     }}
                     variant="outlined"
@@ -1459,40 +1598,20 @@ const Index = ({
             <div className="h-[calc(100vh-320px)] w-full bg-white relative">
               <div className="h-full">
                 <DataGridComponent
-                  rows={memoizedRows?.filter(row => row && typeof row.id === 'number' && !isNaN(row.id)) || []}
-                  columns={allColumns || columnDefinitions || []}
+                  rows={filteredData}
+                  columns={allColumns}
                   loading={loading}
-                  getRowId={(row) => {
-                    try {
-                      // Ensure we get a valid ID
-                      if (!row || row.id === undefined || row.id === null) {
-                        console.error("Invalid row encountered:", row);
-                        throw new Error("Row is missing a valid ID");
-                      }
-                      return row.id;
-                    } catch (error) {
-                      console.error("Error in getRowId:", error);
-                      // Return a temporary ID to prevent crashes
-                      return `temp-${Math.random().toString(36).substring(2, 9)}`;
-                    }
-                  }} 
+                  getRowId={(row) => row.id}
                   onSave={handleSave}
                   onDelete={handleDelete}
-                  onCellEditCommit={(params) => {
-                    try {
-                      handleCellEditCommit(params);
-                    } catch (error) {
-                      console.error("Error in cell edit:", error);
-                      toast.error(`Failed to update cell: ${error.message || "Unknown error"}`);
-                    }
-                  }}
+                  onCellEditCommit={handleCellEdit}
                   selectedRows={selectedRows}
                   setSelectedRows={setSelectedRows}
-                  perPage={get_data?.per_page || 10}
-                  onPerPageChange={handlePerPageChange}
+                  perPage={pageSize}
+                  onPerPageChange={handlePageSizeChange}
                   paginationModel={{
                     page: sites?.current_page - 1 || 0,
-                    pageSize: get_data?.per_page || 10
+                    pageSize: pageSize
                   }}
                   autoHeight={false}
                   className="h-full"
@@ -1517,13 +1636,29 @@ const Index = ({
             isOpen={importModalOpen}
             onClose={() => setImportModalOpen(false)}
             title="Import WNTD Data"
-            description="Import WNTD data from CSV or Excel file. Download the template for the correct format."
-            templateUrl="/api/wntd/template/download"
-            importUrl="/api/wntd/import"
-            requiredFields={['site_name', 'wntd', 'imsi']}
-            onImportComplete={() => {
-              refreshPage();
-            }}
+            description="Import WNTD data from CSV file. Download the template for the correct format."
+            templateUrl={safeRoute('wntd.download.template', { targetTable: 'wntd', format: 'csv' })}
+            importUrl={safeRoute('wntd.import.file')}
+            requiredFields={[
+              'site_name',
+              'loc_id',
+              'wntd',
+              'imsi',
+              'version',
+              'avc',
+              'bw_profile',
+              'lon',
+              'lat',
+              'home_cell',
+              'home_pci',
+              'remarks',
+              'start_date',
+              'end_date',
+              'solution_type',
+              'status',
+              'artefacts'
+            ]}
+            onImportComplete={fetchData}
           />
         </div>
       </ErrorBoundary>

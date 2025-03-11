@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * RAN Parameter Model
@@ -30,7 +32,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 class RANParameter extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     /**
      * The table associated with the model.
@@ -45,29 +47,84 @@ class RANParameter extends Model
      * @var array<int, string>
      */
     protected $fillable = [
-        'parameter_id',
+        'type',
+        'model',
+        'mo_class_name',
         'parameter_name',
+        'parameter_id',
         'parameter_value',
+        'parameter_description',
         'description',
-        'domain',
+        'seq',
         'data_type',
-        'value_range',
+        'range',
+        'def',
+        'mul',
+        'unit',
+        'rest',
+        'read',
+        'restr',
+        'manc',
+        'pers',
+        'syst',
+        'change',
+        'dist',
+        'dependencies',
+        'dep',
+        'obs',
+        'prec',
+        'domain',
         'mo_reference',
         'default_value',
         'category',
         'technology',
         'vendor',
         'applicability',
-        'status',
-        'type',
-        'value',
-        'unit'
+        'status'
     ];
     
     protected $casts = [
+        'mul' => 'boolean',
+        'seq' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'deleted_at' => 'datetime'
     ];
+
+    protected $attributes = [
+        'status' => 'active',
+        'type' => 'parameter'
+    ];
+
+    public static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($model) {
+            if (!$model->status) {
+                $model->status = 'active';
+            }
+        });
+
+        static::saving(function ($model) {
+            // Convert empty strings to null
+            foreach ($model->attributes as $key => $value) {
+                if ($value === '') {
+                    $model->attributes[$key] = null;
+                }
+            }
+
+            // Ensure seq is an integer if provided
+            if (isset($model->attributes['seq']) && !is_null($model->attributes['seq'])) {
+                $model->attributes['seq'] = (int)$model->attributes['seq'];
+            }
+
+            // Ensure mul is boolean
+            if (isset($model->attributes['mul'])) {
+                $model->attributes['mul'] = (bool)$model->attributes['mul'];
+            }
+        });
+    }
 
     /**
      * Get parameters filtered by technology
@@ -127,5 +184,48 @@ class RANParameter extends Model
     public function structure()
     {
         return $this->belongsTo(RANStructParameter::class, 'struct_parameter_id');
+    }
+
+    public function trackChanges($changes = [])
+    {
+        if (empty($changes)) {
+            $changes = $this->getDirty();
+        }
+
+        if (!empty($changes)) {
+            $history = new RANParameterHistory([
+                'parameter_id' => $this->id,
+                'user_id' => Auth::id(),
+                'changes' => json_encode($changes),
+                'action' => 'update'
+            ]);
+            $history->save();
+        }
+    }
+
+    public function trackCreation()
+    {
+        $history = new RANParameterHistory([
+            'parameter_id' => $this->id,
+            'user_id' => Auth::id(),
+            'changes' => json_encode($this->attributes),
+            'action' => 'create'
+        ]);
+        $history->save();
+    }
+
+    public function scopeByTechnology($query, $technology)
+    {
+        return $query->where('technology', $technology);
+    }
+
+    public function scopeByVendor($query, $vendor)
+    {
+        return $query->where('vendor', $vendor);
+    }
+
+    public function scopeByCategory($query, $category)
+    {
+        return $query->where('category', $category);
     }
 } 

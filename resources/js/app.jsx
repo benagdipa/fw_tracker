@@ -13,53 +13,182 @@ import { ThemeProvider } from '@/Context/ThemeContext';
 import { ThemeProvider as MaterialTailwindProvider } from "@material-tailwind/react";
 
 // Material Tailwind configuration
-const materialTailwindConfig = {
-    theme: {
-        colors: {
-            primary: {
-                50: '#e6f0fa',
-                100: '#cce0f5',
-                200: '#99c2eb',
-                300: '#66a3e0',
-                400: '#3385d6',
-                500: '#0057B8',
-                600: '#0048a3',
-                700: '#003d8f',
-                800: '#00326b',
-                900: '#002247',
-            },
-            secondary: {
-                50: '#e6f8fe',
-                100: '#cdf1fd',
-                200: '#9be4fb',
-                300: '#68d6f9',
-                400: '#36c9f7',
-                500: '#00AEEF',
-                600: '#0099d1',
-                700: '#0085b3',
-                800: '#006e94',
-                900: '#005876',
-            },
+const materialTailwindTheme = {
+    colors: {
+        primary: {
+            50: '#e6f0fa',
+            100: '#cce0f5',
+            200: '#99c2eb',
+            300: '#66a3e0',
+            400: '#3385d6',
+            500: '#0057B8',
+            600: '#0048a3',
+            700: '#003d8f',
+            800: '#00326b',
+            900: '#002247',
         },
+        secondary: {
+            50: '#e6f8fe',
+            100: '#cdf1fd',
+            200: '#9be4fb',
+            300: '#68d6f9',
+            400: '#36c9f7',
+            500: '#00AEEF',
+            600: '#0099d1',
+            700: '#0085b3',
+            800: '#006e94',
+            900: '#005876',
+        },
+        blue: {
+            50: '#eff6ff', 
+            100: '#dbeafe',
+            200: '#bfdbfe',
+            300: '#93c5fd',
+            400: '#60a5fa',
+            500: '#3b82f6', 
+            600: '#2563eb',
+            700: '#1d4ed8',
+            800: '#1e40af',
+            900: '#1e3a8a',
+        }
+    },
+    fontFamily: {
+        sans: ["Inter", "sans-serif"],
+        serif: ["Roboto Slab", "serif"],
+        body: ["Inter", "sans-serif"],
+        mono: ["Roboto Mono", "monospace"],
+    },
+    fontSize: {
+        xs: '0.75rem',
+        sm: '0.875rem',
+        base: '1rem',
+        lg: '1.125rem',
+        xl: '1.25rem',
+        '2xl': '1.5rem',
+        '3xl': '1.875rem',
+    },
+    borderRadius: {
+        DEFAULT: '0.375rem',
+        none: '0px',
+        sm: '0.125rem',
+        md: '0.375rem',
+        lg: '0.5rem',
+        xl: '0.75rem',
+        '2xl': '1rem',
+        full: '9999px',
+    },
+    boxShadow: {
+        DEFAULT: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
+        sm: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
+        md: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+        lg: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
+        xl: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)',
+    },
+    shape: {
         borderRadius: {
-            DEFAULT: '0.375rem',
-        },
-        components: {
-            button: {
-                defaultProps: {
-                    color: "primary",
-                    size: "md",
-                    variant: "filled",
-                },
-                styles: {
-                    base: {
-                        initial: {
-                            fontWeight: "500",
-                        },
+            xs: '0.125rem',
+            sm: '0.25rem',
+            md: '0.375rem',
+            lg: '0.5rem',
+            xl: '0.75rem',
+        }
+    },
+    components: {
+        button: {
+            defaultProps: {
+                color: "primary",
+                size: "md",
+                variant: "filled",
+            },
+            styles: {
+                base: {
+                    initial: {
+                        fontWeight: "500",
+                        borderRadius: "0.375rem"
                     },
                 },
             },
         },
+        card: {
+            defaultProps: {
+                color: "white",
+                shadow: true,
+                variant: "filled",
+            },
+            styles: {
+                base: {
+                    initial: {
+                        borderRadius: "0.375rem",
+                    },
+                },
+            },
+        },
+        dialog: {
+            defaultProps: {
+                size: "md",
+                dismiss: {},
+                animate: {
+                    unmount: {},
+                    mount: {},
+                },
+            },
+            styles: {
+                base: {
+                    backdrop: {
+                        backgroundColor: "rgba(0, 0, 0, 0.5)",
+                    },
+                    container: {
+                        borderRadius: "0.375rem",
+                    },
+                },
+            },
+        },
+        input: {
+            defaultProps: {
+                size: "md",
+                color: "primary",
+                variant: "outlined",
+            },
+            styles: {
+                base: {
+                    container: {
+                        borderRadius: "0.375rem",
+                    },
+                },
+            },
+        },
+        popover: {
+            defaultProps: {
+                placement: "bottom",
+                offset: 5,
+                dismiss: {},
+                animate: {
+                    unmount: {},
+                    mount: {},
+                },
+            },
+            styles: {
+                base: {
+                    container: {
+                        borderRadius: "0.375rem",
+                    },
+                },
+            },
+        },
+        select: {
+            defaultProps: {
+                variant: "outlined",
+                size: "md",
+                color: "primary",
+            },
+            styles: {
+                base: {
+                    container: {
+                        borderRadius: "0.375rem",
+                    },
+                },
+            },
+        }
     },
 };
 
@@ -114,7 +243,7 @@ createInertiaApp({
         const root = createRoot(el);
 
         root.render(
-            <MaterialTailwindProvider theme={materialTailwindConfig}>
+            <MaterialTailwindProvider value={materialTailwindTheme}>
                 <ThemeProvider>
                     <StoreProvider>
                         <App {...props} plugin={plugin} />

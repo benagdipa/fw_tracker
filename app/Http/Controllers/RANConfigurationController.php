@@ -17,6 +17,8 @@ use App\Http\Requests\RANParameterRequest;
 use App\Http\Requests\RANStructParameterRequest;
 use App\Services\RANImportService;
 use App\Exceptions\ValidationException;
+use Illuminate\Support\Facades\Storage;
+use League\Csv\Reader;
 
 class RANConfigurationController extends Controller
 {
@@ -68,31 +70,124 @@ class RANConfigurationController extends Controller
     public function getExcelData()
     {
         try {
-            // Get parameters from database
-            $structParameters = RANParameter::where('type', 'struct')->get();
-            $parameters = RANParameter::where('type', 'parameter')->get();
+            // Build queries with proper error handling
+            $structQuery = RANParameter::where('type', 'struct');
+            $paramsQuery = RANParameter::where('type', 'parameter');
+
+            // Process request parameters if provided
+            $search = request('search', '');
+            $perPage = request('per_page', 10);
+            $includeDeleted = request('include_deleted', false);
+            
+            // Apply filters
+            if (!empty($search)) {
+                $structQuery->where(function($q) use ($search) {
+                    $q->where('parameter_name', 'like', "%{$search}%")
+                      ->orWhere('model', 'like', "%{$search}%")
+                      ->orWhere('mo_class_name', 'like', "%{$search}%");
+                });
+                
+                $paramsQuery->where(function($q) use ($search) {
+                    $q->where('parameter_name', 'like', "%{$search}%")
+                      ->orWhere('parameter_id', 'like', "%{$search}%")
+                      ->orWhere('description', 'like', "%{$search}%");
+                });
+            }
+            
+            // Disable the soft delete functionality temporarily for this query
+            $structQuery->withoutGlobalScope('Illuminate\Database\Eloquent\SoftDeletingScope');
+            $paramsQuery->withoutGlobalScope('Illuminate\Database\Eloquent\SoftDeletingScope');
+
+            // Get the data 
+            $structParameters = $structQuery->get();
+            $parameters = $paramsQuery->get();
+
+            // Process struct parameters data
+            $processedStructParams = $structParameters->map(function ($param) {
+                $data = $param->toArray();
+                return array_merge($data, [
+                    'id' => $param->id,
+                    'model' => $data['model'] ?? null,
+                    'mo_class_name' => $data['mo_class_name'] ?? null,
+                    'parameter_name' => $data['parameter_name'] ?? null,
+                    'seq' => is_numeric($data['seq']) ? (int)$data['seq'] : null,
+                    'parameter_description' => $data['parameter_description'] ?? null,
+                    'data_type' => $data['data_type'] ?? null,
+                    'range' => $data['range'] ?? null,
+                    'def' => $data['def'] ?? null,
+                    'mul' => isset($data['mul']) ? (bool)$data['mul'] : false,
+                    'unit' => $data['unit'] ?? null,
+                    'rest' => $data['rest'] ?? null,
+                    'read' => $data['read'] ?? null,
+                    'restr' => $data['restr'] ?? null,
+                    'manc' => $data['manc'] ?? null,
+                    'pers' => $data['pers'] ?? null,
+                    'syst' => $data['syst'] ?? null,
+                    'change' => $data['change'] ?? null,
+                    'dist' => $data['dist'] ?? null,
+                    'dependencies' => $data['dependencies'] ?? null,
+                    'dep' => $data['dep'] ?? null,
+                    'obs' => $data['obs'] ?? null,
+                    'prec' => $data['prec'] ?? null,
+                    'status' => $data['status'] ?? 'active',
+                    'created_at' => $data['created_at'],
+                    'updated_at' => $data['updated_at']
+                ]);
+            });
+
+            // Process parameters data
+            $processedParams = $parameters->map(function ($param) {
+                $data = $param->toArray();
+                return array_merge($data, [
+                    'id' => $param->id,
+                    'parameter_id' => $data['parameter_id'] ?? null,
+                    'parameter_name' => $data['parameter_name'] ?? null,
+                    'parameter_value' => $data['parameter_value'] ?? null,
+                    'description' => $data['description'] ?? null,
+                    'domain' => $data['domain'] ?? null,
+                    'data_type' => $data['data_type'] ?? null,
+                    'mo_reference' => $data['mo_reference'] ?? null,
+                    'default_value' => $data['default_value'] ?? null,
+                    'category' => $data['category'] ?? null,
+                    'technology' => $data['technology'] ?? null,
+                    'vendor' => $data['vendor'] ?? null,
+                    'applicability' => $data['applicability'] ?? null,
+                    'status' => $data['status'] ?? 'active',
+                    'created_at' => $data['created_at'],
+                    'updated_at' => $data['updated_at']
+                ]);
+            });
 
             // Calculate statistics
-            $totalParameters = RANParameter::count();
-            $activeParameters = RANParameter::where('status', 'active')->count();
-            $technologies = RANParameter::distinct('technology')->pluck('technology')->filter()->values();
+            $stats = [
+                'totalParameters' => RANParameter::count(),
+                'activeParameters' => RANParameter::where('status', 'active')->count(),
+                'technologies' => RANParameter::distinct('technology')
+                    ->whereNotNull('technology')
+                    ->pluck('technology')
+                    ->filter()
+                    ->values(),
+                'vendors' => RANParameter::distinct('vendor')
+                    ->whereNotNull('vendor')
+                    ->pluck('vendor')
+                    ->filter()
+                    ->values(),
+                'recentlyAdded' => RANParameter::where('created_at', '>=', now()->subDays(7))->count()
+            ];
 
             return response()->json([
                 'success' => true,
                 'data' => [
                     'structParameters' => [
-                        'data' => $structParameters
+                        'data' => $processedStructParams
                     ],
                     'parameters' => [
-                        'data' => $parameters
+                        'data' => $processedParams
                     ],
-                    'stats' => [
-                        'totalParameters' => $totalParameters,
-                        'activeParameters' => $activeParameters,
-                        'technologies' => $technologies
-                    ]
+                    'stats' => $stats
                 ]
             ]);
+
         } catch (\Exception $e) {
             Log::error('Error fetching RAN configuration data: ' . $e->getMessage(), [
                 'file' => $e->getFile(),
@@ -108,28 +203,44 @@ class RANConfigurationController extends Controller
     }
 
     /**
-     * Import RAN Configuration data from file
-     * 
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * Import data from the uploaded file
      */
-    public function importFile(Request $request)
+    public function import(Request $request)
     {
         try {
             // Validate request
             $validator = Validator::make($request->all(), [
                 'file' => 'required|file|mimes:xlsx,xls,csv,txt',
+                'columnMappings' => 'required|string',
                 'targetTable' => 'required|in:struct_parameters,parameters',
-                'columnMappings' => 'required|array'
+                'updateExisting' => 'nullable|boolean'
             ]);
 
             if ($validator->fails()) {
-                throw new ValidationException($validator);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // Decode and validate column mappings
+            try {
+                $columnMappings = json_decode($request->input('columnMappings'), true);
+                if (!is_array($columnMappings)) {
+                    throw new \Exception("Column mappings must be an array");
+                }
+            } catch (\Exception $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid column mappings format',
+                    'errors' => ['columnMappings' => [$e->getMessage()]]
+                ], 422);
             }
 
             $file = $request->file('file');
             $targetTable = $request->input('targetTable');
-            $columnMappings = $request->input('columnMappings');
+            $updateExisting = $request->boolean('updateExisting', true); // Default to true
             
             // Store the file
             $filePath = $file->store('temp');
@@ -137,16 +248,22 @@ class RANConfigurationController extends Controller
             // Use the import service with appropriate type
             $type = $targetTable === 'struct_parameters' ? 'struct' : 'parameter';
             $importService = app(RANImportService::class, ['type' => $type]);
+            
+            // Set whether to update existing records
+            $importService->setUpdateExisting($updateExisting);
+
+            // Set import options if provided
+            if ($request->has('importOptions')) {
+                $importOptions = json_decode($request->input('importOptions'), true);
+                if (is_array($importOptions)) {
+                    $importService->setImportOptions($importOptions);
+                }
+            }
+            
             $result = $importService->importFromFile($filePath, $columnMappings);
             
             return response()->json($result);
             
-        } catch (ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $e->errors()
-            ], 422);
         } catch (\Exception $e) {
             Log::error('RAN Configuration import error: ' . $e->getMessage());
             return response()->json([
@@ -736,11 +853,18 @@ class RANConfigurationController extends Controller
     }
 
     /**
-     * Generate and download a template file
+     * Download a template file for importing data
+     * 
+     * @param string $importType The type of import (struct_parameters or parameters)
+     * @param string $format The format of the template (excel or csv)
+     * @return \Illuminate\Http\Response
      */
-    public function downloadTemplate($targetTable, $format)
+    public function downloadTemplate($importType = null, $format = 'excel')
     {
         try {
+            // If importType is not provided, use the targetTable parameter for backward compatibility
+            $targetTable = $importType ?? request('targetTable', 'parameters');
+            
             // Validate parameters
             if (!in_array($targetTable, ['struct_parameters', 'parameters'])) {
                 return response()->json([
@@ -754,6 +878,15 @@ class RANConfigurationController extends Controller
                     'success' => false,
                     'message' => 'Invalid format specified'
                 ], 400);
+            }
+            
+            // Check if a custom template exists
+            $templateFilename = "ran_{$targetTable}_template.csv";
+            $customTemplatePath = public_path("templates/{$templateFilename}");
+            if (file_exists($customTemplatePath) && $format === 'csv') {
+                return response()->download($customTemplatePath, $templateFilename, [
+                    'Content-Type' => 'text/csv'
+                ]);
             }
             
             // Create a spreadsheet
@@ -1175,7 +1308,7 @@ class RANConfigurationController extends Controller
     public function getParameterMappingsData(Request $request)
     {
         try {
-            // Get query parameters</edit>
+            // Get query parameters
             $group = $request->query('group');
             $category = $request->query('category');
             $search = $request->query('search');
@@ -1566,6 +1699,127 @@ class RANConfigurationController extends Controller
             return response()->json([
                 'message' => $errorDetails['message'],
                 'success' => false
+            ], 500);
+        }
+    }
+
+    /**
+     * Handle file import
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function importFile(Request $request)
+    {
+        try {
+            // Validate request
+            $validator = Validator::make($request->all(), [
+                'file' => 'required|file|mimes:xlsx,xls,csv,txt',
+                'targetTable' => 'required|in:struct_parameters,parameters'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            if (!$request->hasFile('file')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No file was uploaded'
+                ], 422);
+            }
+
+            $file = $request->file('file');
+            $targetTable = $request->input('targetTable');
+
+            // Check if the file is empty
+            if ($file->getSize() == 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The uploaded file is empty'
+                ], 422);
+            }
+
+            // Store the file
+            $path = $file->store('temp');
+
+            try {
+                // Read CSV headers
+                $reader = Reader::createFromPath(storage_path('app/' . $path), 'r');
+                $reader->setHeaderOffset(0);
+
+                $header = $reader->getHeader();
+
+                // Make sure we have the required columns based on target table
+                $requiredColumns = $targetTable === 'struct_parameters' 
+                    ? ['model', 'mo_class_name', 'parameter_name']
+                    : ['parameter_id', 'parameter_name', 'parameter_value'];
+
+                $missingColumns = array_diff($requiredColumns, array_map('strtolower', $header));
+
+                if (count($missingColumns) > 0) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'The file is missing required columns: ' . implode(', ', $missingColumns)
+                    ], 422);
+                }
+
+                // Get sample rows for preview
+                $records = $reader->getRecords();
+                $count = 0;
+                $sample = [];
+
+                foreach ($records as $record) {
+                    if ($count < 5) {
+                        $sample[] = $record;
+                    }
+                    $count++;
+
+                    if ($count >= 5) {
+                        break;
+                    }
+                }
+
+                // Return success with file path, header and sample for mapping
+                return response()->json([
+                    'success' => true,
+                    'path' => $path,
+                    'header' => $header,
+                    'sample' => $sample,
+                    'total_rows' => $count,
+                    'targetTable' => $targetTable
+                ]);
+
+            } catch (\Exception $e) {
+                // Delete the file if parsing fails
+                Storage::delete($path);
+
+                Log::error('CSV parsing error: ' . $e->getMessage(), [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to parse file: ' . $e->getMessage()
+                ], 422);
+            }
+
+        } catch (\Exception $e) {
+            Log::error('File upload error: ' . $e->getMessage(), [
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'File upload failed: ' . $e->getMessage()
             ], 500);
         }
     }

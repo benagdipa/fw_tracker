@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class RANParameterHistory extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     /**
      * The table associated with the model.
@@ -23,13 +24,9 @@ class RANParameterHistory extends Model
      */
     protected $fillable = [
         'parameter_id',
-        'field_name',
-        'old_value',
-        'new_value',
         'user_id',
-        'change_type',
-        'changed_by',
-        'change_reason'
+        'changes',
+        'action'
     ];
 
     /**
@@ -38,8 +35,10 @@ class RANParameterHistory extends Model
      * @var array<string, string>
      */
     protected $casts = [
+        'changes' => 'array',
         'created_at' => 'datetime',
-        'updated_at' => 'datetime'
+        'updated_at' => 'datetime',
+        'deleted_at' => 'datetime'
     ];
 
     protected function asJson($value)
@@ -74,6 +73,6 @@ class RANParameterHistory extends Model
      */
     public function user()
     {
-        return $this->belongsTo(User::class, 'changed_by');
+        return $this->belongsTo(User::class, 'user_id');
     }
 } 

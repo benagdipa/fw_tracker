@@ -1,0 +1,2 @@
+site_name,category,eNB_gNB,implementor,status,start_date,end_date,notes,CRQ,enm_scripts_path,sp_scripts_path,address,lat,lng
+Site A,Parameters,ENB123,Team Alpha,in_progress,2023-01-01,2023-03-31,Network optimization in progress,CRQ12345,/path/to/enm/scripts,/path/to/sp/scripts,"123 Main St, City",37.7749,-122.4194 

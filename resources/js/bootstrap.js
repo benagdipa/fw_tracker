@@ -6,6 +6,69 @@ window.axios = axios;
 window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 window.axios.defaults.withCredentials = true; // Ensure cookies are sent with all requests
 
+// Register Service Worker with improved error handling
+if ('serviceWorker' in navigator) {
+    // Global flag to track if service worker was successfully registered
+    window.serviceWorkerRegistered = false;
+    
+    window.addEventListener('load', async () => {
+        try {
+            // Check for any existing service workers that might need updating
+            const existingRegistration = await navigator.serviceWorker.getRegistration();
+            if (existingRegistration) {
+                // Force update if needed
+                await existingRegistration.update();
+                window.serviceWorkerRegistered = true;
+                console.log('Updated existing Service Worker');
+            } else {
+                // Register or update the service worker
+                const registration = await navigator.serviceWorker.register('/service-worker.js', {
+                    updateViaCache: 'none', // Don't use cached version, always check for updates
+                    scope: '/' // Set explicit scope
+                });
+                window.serviceWorkerRegistered = true;
+                console.log('Service Worker registered with scope:', registration.scope);
+            }
+            
+            // Add controller change event listener
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                console.log('Service Worker controller changed');
+            });
+        } catch (error) {
+            console.error('Service Worker registration failed:', error);
+            window.serviceWorkerRegistered = false;
+            
+            // If registration fails, try to unregister any existing service workers
+            try {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                for (let registration of registrations) {
+                    await registration.unregister();
+                    console.log('Unregistered stale service worker');
+                }
+            } catch (unregError) {
+                console.error('Error unregistering service worker:', unregError);
+            }
+            
+            // Create a fallback memory storage
+            window.fallbackStorage = new Map();
+            console.log('Created fallback memory storage due to service worker issues');
+        }
+    });
+    
+    // Fallback function for when service worker isn't available
+    window.isSWAvailable = () => window.serviceWorkerRegistered && 
+                                 navigator.serviceWorker.controller;
+} else {
+    // Service Workers not supported by browser
+    console.warn('Service Workers are not supported in this browser');
+    window.serviceWorkerRegistered = false;
+    window.isSWAvailable = () => false;
+    
+    // Create a fallback memory storage
+    window.fallbackStorage = new Map();
+    console.log('Created fallback memory storage due to lack of service worker support');
+}
+
 // Store the last error for debugging
 window.axios.lastError = null;
 

@@ -1,0 +1,2 @@
+loc_id,wntd,imsi,version,avc,bw_profile,lon,lat,site_name,home_cell,home_pci,remarks,start_date,end_date,solution_type,status,artefacts
+LOC123,WNTD456,123456789012345,1.0.0,AVC1,BW1,12.3456,34.5678,Example Site,Cell1,123,Test remarks,2024-03-20,2024-12-31,Type1,active,[] 

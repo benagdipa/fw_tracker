@@ -217,6 +217,10 @@ Route::get('/read_excel.php', function () {
     require base_path('read_excel.php');
 })->name('read.excel');
 
+// Add the import preview route with minimal middleware
+Route::post('/api/import/preview', [\App\Http\Controllers\ImportController::class, 'preview'])
+    ->name('import.preview');
+
 require __DIR__ . '/auth.php';
 
 /*
