@@ -114,7 +114,7 @@ createInertiaApp({
         const root = createRoot(el);
 
         root.render(
-            <MaterialTailwindProvider value={materialTailwindConfig}>
+            <MaterialTailwindProvider theme={materialTailwindConfig}>
                 <ThemeProvider>
                     <StoreProvider>
                         <App {...props} plugin={plugin} />
