@@ -1,5 +1,5 @@
 // 4G Tracker Service Worker
-const CACHE_NAME = '4g-tracker-cache-v1';
+const CACHE_NAME = '4g-tracker-cache-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.php',

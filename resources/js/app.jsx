@@ -3,6 +3,9 @@ import '../css/app.css';
 import '../css/data-grid-custom.css';
 import '../css/button-styles.css';
 
+// Add version indicator to confirm fresh load
+console.log('4G Tracker - Version 2023.3.15 - Chrome Extension Removed');
+
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { createInertiaApp } from '@inertiajs/react';
