@@ -3,8 +3,7 @@ const CACHE_NAME = '4g-tracker-cache-v1';
 const STATIC_ASSETS = [
   '/',
   '/index.php',
-  '/favicon.ico',
-  '/manifest.json'
+  '/favicon.ico'
 ];
 
 // IndexedDB configuration

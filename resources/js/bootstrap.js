@@ -6,8 +6,20 @@ window.axios = axios;
 window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 window.axios.defaults.withCredentials = true; // Ensure cookies are sent with all requests
 
+// Check if we're in a standard web context (not in a restricted context like iframe)
+const isWebContext = () => {
+    try {
+        return window.self === window.top && 
+               typeof window.localStorage !== 'undefined' && 
+               typeof document.cookie !== 'undefined';
+    } catch (e) {
+        // If we can't access window.top due to cross-origin restrictions
+        return false;
+    }
+};
+
 // Register Service Worker with improved error handling
-if ('serviceWorker' in navigator) {
+if ('serviceWorker' in navigator && isWebContext()) {
     // Global flag to track if service worker was successfully registered
     window.serviceWorkerRegistered = false;
     
@@ -59,8 +71,8 @@ if ('serviceWorker' in navigator) {
     window.isSWAvailable = () => window.serviceWorkerRegistered && 
                                  navigator.serviceWorker.controller;
 } else {
-    // Service Workers not supported by browser
-    console.warn('Service Workers are not supported in this browser');
+    // Service Workers not supported by browser or not in web context
+    console.warn('Service Workers are not available in this context');
     window.serviceWorkerRegistered = false;
     window.isSWAvailable = () => false;
     

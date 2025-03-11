@@ -24,14 +24,9 @@ const isServiceWorkerAvailable = async () => {
   }
 };
 
-// Helper to refresh CSRF token after storage operations
-const refreshCsrfTokenAfterStorage = () => {
-  // Use the global function if available from bootstrap.js
-  if (window.refreshCsrfToken && typeof window.refreshCsrfToken === 'function') {
-    setTimeout(() => {
-      window.refreshCsrfToken();
-    }, 50); // Small delay to ensure token refresh happens after storage completes
-  }
+// Check for memory storage availability
+const isMemoryStorageAvailable = () => {
+  return typeof window !== 'undefined' && window.fallbackStorage instanceof Map;
 };
 
 // Send message to service worker and get response
@@ -81,9 +76,18 @@ const isLocalStorageAvailable = () => {
   }
 };
 
-// Check if fallback memory storage is available
-const isMemoryStorageAvailable = () => {
-  return window.fallbackStorage && window.fallbackStorage instanceof Map;
+// Refresh CSRF token after storage changes (for web app)
+const refreshCsrfTokenAfterStorage = () => {
+  try {
+    // Implement your CSRF token refresh logic here if needed
+    if (window.refreshCsrfToken && typeof window.refreshCsrfToken === 'function') {
+      setTimeout(() => {
+        window.refreshCsrfToken();
+      }, 50); // Small delay to ensure token refresh happens after storage completes
+    }
+  } catch (error) {
+    console.error('Error refreshing CSRF token:', error);
+  }
 };
 
 /**
