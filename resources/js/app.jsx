@@ -67,15 +67,6 @@ const materialTailwindTheme = {
         '2xl': '1.5rem',
         '3xl': '1.875rem',
     },
-    shape: {
-        borderRadius: {
-            xs: '0.125rem',
-            sm: '0.25rem',
-            md: '0.375rem',
-            lg: '0.5rem',
-            xl: '0.75rem',
-        }
-    },
     shadows: {
         sm: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
         DEFAULT: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
